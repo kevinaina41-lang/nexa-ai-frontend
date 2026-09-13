@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Connexion - Nexa AI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <h1>🤖 Nexa AI</h1>
+        <p>Connectez-vous pour continuer</p>
+
+        <form id="login-form" onsubmit="connexion(event)">
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="password" id="password" placeholder="Mot de passe" required>
+            <button type="submit">Se connecter</button>
+        </form>
+
+        <p class="signup-link">
+            Pas de compte ? 
+            <a href="#" onclick="inscription(event)">S'inscrire</a>
+        </p>
+    </div>
+
+    <script src="auth.js"></script>
+</body>
+</html>

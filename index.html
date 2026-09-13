@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexa AI</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-top">
+                <button class="btn-toggle" onclick="toggleSidebar()"><i data-lucide="panel-left-close"></i></button>
+                <span class="app-brand">Nexa AI</span>
+            </div>
+
+            <div class="sidebar-new-chat">
+                <button class="btn-new-chat" onclick="nouveauChat()">
+                    <span class="btn-round"><i data-lucide="pen-line"></i></span>
+                    <span>Nouveau chat</span>
+                </button>
+            </div>
+
+            <div class="sidebar-search">
+                <i data-lucide="search"></i>
+                <input type="text" placeholder="Rechercher..." id="search" oninput="rechercherConversations()">
+            </div>
+
+            <div class="sidebar-history">
+                <p class="history-title">Récents</p>
+                <div id="historique"></div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="user-info" onclick="toggleMenuProfil(event)">
+                    <div class="user-avatar" id="user-avatar">
+                        <img id="user-avatar-img" src="logo.png" alt="">
+                    </div>
+                    <div class="user-details">
+                        <span class="user-name" id="user-name">Kevin</span>
+                        <span class="user-plan" id="user-bio">Free</span>
+                    </div>
+                </div>
+
+                <div class="menu-profil" id="menu-profil">
+                    <button onclick="ouvrirParametres()"><i data-lucide="settings"></i> Paramètres</button>
+                    <button onclick="modifierProfil()"><i data-lucide="user"></i> Modifier le profil</button>
+                    <button onclick="personnaliserIA()"><i data-lucide="sparkles"></i> Personnaliser Nexa AI</button>
+                    <button onclick="ouvrirAide()"><i data-lucide="help-circle"></i> Aide</button>
+                    <hr>
+                    <button onclick="deconnexion()"><i data-lucide="log-out"></i> Déconnexion</button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main">
+            <button class="btn-open-sidebar" id="btn-open-sidebar" onclick="toggleSidebar()">
+                <i data-lucide="panel-left-open"></i>
+            </button>
+
+            <div class="chat" id="chat">
+                <div class="welcome">
+                    <div class="welcome-logo"><img src="logo.png" alt="Nexa AI"></div>
+                    <h1 id="welcome-message">Comment puis-je vous aider ?</h1>
+                    <div class="welcome-suggestions">
+                        <button onclick="suggestionRapide('Fais-moi un quiz sur les fractions')">📝 Quiz</button>
+                        <button onclick="suggestionRapide('Crée une fiche sur la Révolution française')">📚 Fiche</button>
+                        <button onclick="suggestionRapide('Génère mon CV')">📄 CV</button>
+                        <button onclick="suggestionRapide('Corrige ce texte : ')">✅ Corriger</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-zone">
+                <div class="input-wrapper">
+    <button class="btn-attach" onclick="document.getElementById('file-input').click()" title="Joindre un fichier">
+        <i data-lucide="paperclip"></i>
+    </button>
+    <input type="file" id="file-input" onchange="analyserFichier(event)" style="display:none" accept=".pdf,.docx,.xlsx,.txt,.jpg,.jpeg,.png">
+    
+    <button class="btn-recherche" id="btn-recherche" onclick="toggleRecherche()" title="Recherche approfondie">
+        <i data-lucide="globe"></i>
+    </button>
+    
+    <input type="text" id="message" placeholder="Poser une question..." onkeypress="if(event.key==='Enter') envoyerMessage()">
+    <button class="btn-send" onclick="envoyerMessage()"><i data-lucide="arrow-up"></i></button>
+</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODALE PARAMÈTRES -->
+    <div class="modal" id="modal-parametres">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Paramètres</h2>
+                <button onclick="fermerModal('modal-parametres')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-item">
+                    <label>Mode sombre</label>
+                    <input type="checkbox" id="toggle-dark" onchange="toggleDarkMode()">
+                </div>
+                <div class="setting-item">
+                    <label>Langue de l'interface</label>
+                    <select id="langue-select" onchange="changerLangue()">
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="en">🇬🇧 English</option>
+                        <option value="mg">🇲🇬 Malagasy</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="zh">🇨🇳 中文</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>Accentuation</label>
+                    <div class="color-options">
+                        <div class="color-dot" style="background:#667eea" onclick="setAccent('#667eea')"></div>
+                        <div class="color-dot" style="background:#10a37f" onclick="setAccent('#10a37f')"></div>
+                        <div class="color-dot" style="background:#e91e63" onclick="setAccent('#e91e63')"></div>
+                        <div class="color-dot" style="background:#ff9800" onclick="setAccent('#ff9800')"></div>
+                        <div class="color-dot" style="background:#9c27b0" onclick="setAccent('#9c27b0')"></div>
+                        <div class="color-dot" style="background:#00bcd4" onclick="setAccent('#00bcd4')"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE PROFIL -->
+    <div class="modal" id="modal-profil">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Modifier le profil</h2>
+                <button onclick="fermerModal('modal-profil')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-edit">
+                    <div class="avatar-edit">
+                        <img id="edit-avatar" src="logo.png" alt="">
+                        <input type="file" id="avatar-input" accept="image/*" onchange="changerAvatar(event)" style="display:none">
+                        <button onclick="document.getElementById('avatar-input').click()"><i data-lucide="camera"></i> Changer</button>
+                    </div>
+                    <label>Nom</label>
+                    <input type="text" id="edit-name" placeholder="Votre nom">
+                    <label>Bio</label>
+                    <textarea id="edit-bio" placeholder="Quelques mots sur vous..."></textarea>
+                    <button class="btn-save" onclick="sauvegarderProfil()">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE AIDE -->
+    <div class="modal" id="modal-aide">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Aide</h2>
+                <button onclick="fermerModal('modal-aide')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Bienvenue sur Nexa AI</strong></p>
+                <p>Demandez simplement à l'IA :</p>
+                <ul>
+                    <li>💬 "Explique-moi les fractions"</li>
+                    <li>📝 "Fais-moi un quiz sur..."</li>
+                    <li>📚 "Crée une fiche sur..."</li>
+                    <li>📄 "Génère mon CV"</li>
+                    <li>✅ "Corrige ce texte : ..."</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE PERSONNALISER IA -->
+    <div class="modal" id="modal-ia">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Personnaliser Nexa AI</h2>
+                <button onclick="fermerModal('modal-ia')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p>Décrivez comment vous voulez que Nexa AI se comporte :</p>
+                <textarea id="persona-input" rows="4" placeholder="Ex : Sois mon mentor bienveillant..."></textarea>
+                <button class="btn-save" onclick="sauvegarderPersona()">Enregistrer</button>
+                <p style="margin-top:20px; font-size:13px; color:var(--text-dim)">Suggestions :</p>
+                <div class="persona-suggestions">
+                    <button onclick="suggestionPersona('mentor bienveillant')">Mentor</button>
+                    <button onclick="suggestionPersona('ami décontracté')">Ami</button>
+                    <button onclick="suggestionPersona('professeur strict')">Professeur</button>
+                    <button onclick="suggestionPersona('coach motivant')">Coach</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="script.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
