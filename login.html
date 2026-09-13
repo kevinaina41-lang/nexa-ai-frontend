@@ -2,23 +2,38 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Connexion - Nexa AI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexa AI - Connexion</title>
+    <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="login-page">
     <div class="login-container">
-        <h1>🤖 Nexa AI</h1>
-        <p>Connectez-vous pour continuer</p>
+        <div class="login-logo">
+            <img src="logo.png" alt="Nexa AI">
+        </div>
+        <h1>Nexa AI</h1>
+        <p id="login-subtitle">Connectez-vous pour continuer</p>
 
-        <form id="login-form" onsubmit="connexion(event)">
-            <input type="email" id="email" placeholder="Email" required>
-            <input type="password" id="password" placeholder="Mot de passe" required>
+        <!-- FORMULAIRE DE CONNEXION -->
+        <form id="form-connexion" onsubmit="connexion(event)">
+            <input type="email" id="email" placeholder="Email" required autocomplete="email">
+            <input type="password" id="password" placeholder="Mot de passe" required autocomplete="current-password">
             <button type="submit">Se connecter</button>
         </form>
 
+        <!-- FORMULAIRE D'INSCRIPTION (caché par défaut) -->
+        <form id="form-inscription" onsubmit="inscription(event)" style="display:none">
+            <input type="email" id="ins-email" placeholder="Email" required autocomplete="email">
+            <input type="text" id="ins-nom" placeholder="Votre nom" required autocomplete="name">
+            <input type="password" id="ins-password" placeholder="Mot de passe (min. 6 caractères)" required minlength="6" autocomplete="new-password">
+            <input type="password" id="ins-password2" placeholder="Confirmer le mot de passe" required minlength="6" autocomplete="new-password">
+            <button type="submit">Créer mon compte</button>
+        </form>
+
         <p class="signup-link">
-            Pas de compte ? 
-            <a href="#" onclick="inscription(event)">S'inscrire</a>
+            <span id="texte-bascule">Pas de compte ?</span>
+            <a href="#" onclick="basculerFormulaire(event)" id="lien-bascule">S'inscrire</a>
         </p>
     </div>
 
