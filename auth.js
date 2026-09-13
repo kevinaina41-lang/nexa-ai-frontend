@@ -1,4 +1,40 @@
-// Vérifier au chargement
+// ============ HASHAGE DU MOT DE PASSE ============
+async function hasher(texte) {
+    const buffer = new TextEncoder().encode(texte);
+    const hash = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(hash))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+// ============ BASCULER ENTRE CONNEXION ET INSCRIPTION ============
+function basculerFormulaire(event) {
+    if (event) event.preventDefault();
+
+    const formConnexion = document.getElementById('form-connexion');
+    const formInscription = document.getElementById('form-inscription');
+    const subtitle = document.getElementById('login-subtitle');
+    const texteBascule = document.getElementById('texte-bascule');
+    const lienBascule = document.getElementById('lien-bascule');
+
+    if (formConnexion.style.display === 'none') {
+        // Afficher CONNEXION
+        formConnexion.style.display = 'flex';
+        formInscription.style.display = 'none';
+        subtitle.innerText = 'Connectez-vous pour continuer';
+        texteBascule.innerText = 'Pas de compte ?';
+        lienBascule.innerText = "S'inscrire";
+    } else {
+        // Afficher INSCRIPTION
+        formConnexion.style.display = 'none';
+        formInscription.style.display = 'flex';
+        subtitle.innerText = 'Créez votre compte';
+        texteBascule.innerText = 'Déjà un compte ?';
+        lienBascule.innerText = 'Se connecter';
+    }
+}
+
+// ============ VÉRIFICATION AU CHARGEMENT ============
 window.addEventListener('DOMContentLoaded', () => {
     if (window.location.pathname.includes('login')) return;
 
@@ -9,10 +45,10 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Connexion
-function connexion(event) {
+// ============ CONNEXION ============
+async function connexion(event) {
     event.preventDefault();
-    const email = document.getElementById('email').value.trim();
+    const email = document.getElementById('email').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
 
     if (!email || !password) {
@@ -27,7 +63,9 @@ function connexion(event) {
         return;
     }
 
-    if (users[email].password !== password) {
+    const hash = await hasher(password);
+
+    if (users[email].password !== hash) {
         alert("Mot de passe incorrect.");
         return;
     }
@@ -40,18 +78,29 @@ function connexion(event) {
     window.location.href = 'index.html';
 }
 
-// Inscription
-function inscription(event) {
-    if (event) event.preventDefault();
-    
-    const email = prompt("Entrez votre email :");
-    if (!email) return;
+// ============ INSCRIPTION ============
+async function inscription(event) {
+    event.preventDefault();
 
-    const nom = prompt("Entrez votre nom :");
-    if (!nom) return;
+    const email = document.getElementById('ins-email').value.trim().toLowerCase();
+    const nom = document.getElementById('ins-nom').value.trim();
+    const password = document.getElementById('ins-password').value;
+    const password2 = document.getElementById('ins-password2').value;
 
-    const password = prompt("Choisissez un mot de passe :");
-    if (!password) return;
+    if (!email || !nom || !password || !password2) {
+        alert("Remplissez tous les champs.");
+        return;
+    }
+
+    if (password.length < 6) {
+        alert("Le mot de passe doit faire au moins 6 caractères.");
+        return;
+    }
+
+    if (password !== password2) {
+        alert("Les mots de passe ne correspondent pas.");
+        return;
+    }
 
     const users = JSON.parse(localStorage.getItem('nexa_users') || '{}');
 
@@ -60,7 +109,9 @@ function inscription(event) {
         return;
     }
 
-    users[email] = { nom: nom, password: password };
+    const hash = await hasher(password);
+
+    users[email] = { nom: nom, password: hash };
     localStorage.setItem('nexa_users', JSON.stringify(users));
 
     localStorage.setItem('nexa_user', JSON.stringify({
@@ -72,7 +123,7 @@ function inscription(event) {
     window.location.href = 'index.html';
 }
 
-// Déconnexion
+// ============ DÉCONNEXION ============
 function deconnexion() {
     if (confirm("Voulez-vous vraiment vous déconnecter ?")) {
         localStorage.removeItem('nexa_user');
