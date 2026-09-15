@@ -5,6 +5,7 @@ let conversationActuelle = null;
 let conversations = [];
 let persona = "";
 let rechercheActive = false;
+let stats = null;
 
 const MESSAGES_ACCUEIL = {
     "mentor": ["Que puis-je vous enseigner aujourd'hui ?", "Prêt à apprendre ?", "Comment puis-je vous guider ?"],
@@ -19,31 +20,226 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!user) { window.location.href = 'login.html'; return; }
     utilisateur = JSON.parse(user);
 
-    document.getElementById('user-name').innerText = utilisateur.nom;
-    document.getElementById('user-bio').innerText = utilisateur.bio || 'Free';
+    const userNameEl = document.getElementById('user-name');
+    if (userNameEl) userNameEl.innerText = utilisateur.nom;
+    const userBioEl = document.getElementById('user-bio');
+    if (userBioEl) userBioEl.innerText = utilisateur.bio || 'Free';
 
     if (utilisateur.avatar) {
-        document.getElementById('user-avatar-img').src = utilisateur.avatar;
+        const avatarImg = document.getElementById('user-avatar-img');
+        if (avatarImg) avatarImg.src = utilisateur.avatar;
     }
 
+    // Mode sombre
     if (localStorage.getItem('nexa_dark') === 'false') {
         document.body.classList.add('light');
-        document.getElementById('toggle-dark').checked = true;
     }
-    const accent = localStorage.getItem('nexa_accent');
-    if (accent) document.documentElement.style.setProperty('--accent', accent);
+    const darkToggle = document.getElementById('toggle-dark');
+    if (darkToggle) {
+        if (!document.body.classList.contains('light')) darkToggle.classList.add('active');
+        else darkToggle.classList.remove('active');
+    }
+
+    // Accentuation
+    const accent = localStorage.getItem('nexa_accent') || '#667eea';
+    document.documentElement.style.setProperty('--accent', accent);
+    const preview = document.getElementById('color-preview');
+    if (preview) preview.style.background = accent;
+    const custom = document.getElementById('custom-color');
+    if (custom) custom.value = accent;
 
     persona = localStorage.getItem('nexa_persona') || '';
 
     const langue = localStorage.getItem('nexa_langue') || 'fr';
-    document.getElementById('langue-select').value = langue;
+    const langueSelect = document.getElementById('langue-select');
+    if (langueSelect) langueSelect.value = langue;
     traduireInterface(langue);
 
     chargerConversations();
+    chargerStats();
     mettreAJourMessageAccueil();
     lucide.createIcons();
 });
 
+// ============ STATS ============
+function chargerStats() {
+    const cle = `nexa_stats_${utilisateur.email}`;
+    stats = JSON.parse(localStorage.getItem(cle) || '{"quiz": [], "messages": 0}');
+}
+
+function sauvegarderStats() {
+    const cle = `nexa_stats_${utilisateur.email}`;
+    localStorage.setItem(cle, JSON.stringify(stats));
+}
+
+function enregistrerScoreQuiz(sujet, score, total) {
+    if (!stats) stats = { quiz: [], messages: 0 };
+    stats.quiz.push({
+        sujet: sujet,
+        score: score,
+        total: total,
+        date: new Date().toISOString()
+    });
+    sauvegarderStats();
+}
+
+function ouvrirStats() {
+    const container = document.getElementById('stats-content');
+    if (!container) return;
+
+    const totalConv = conversations.length;
+    const totalMsg = conversations.reduce((sum, c) => sum + c.messages.length, 0);
+    const totalQuiz = stats.quiz.length;
+    const moyenne = totalQuiz > 0
+        ? (stats.quiz.reduce((sum, q) => sum + (q.score / q.total * 20), 0) / totalQuiz).toFixed(1)
+        : "0.0";
+
+    let html = `
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">${totalConv}</div>
+                <div class="stat-label">Conversations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${totalMsg}</div>
+                <div class="stat-label">Messages</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${totalQuiz}</div>
+                <div class="stat-label">Quiz passés</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${moyenne}</div>
+                <div class="stat-label">Moyenne /20</div>
+            </div>
+        </div>
+    `;
+
+    if (totalQuiz > 0) {
+        html += `
+            <div class="stats-chart">
+                <div class="stats-section-title">Évolution des scores</div>
+                <canvas id="chart-scores" height="150"></canvas>
+            </div>
+            <div style="margin-top:20px">
+                <div class="stats-section-title">Derniers quiz</div>
+        `;
+        stats.quiz.slice(-5).reverse().forEach(q => {
+            const note = (q.score / q.total * 20).toFixed(1);
+            html += `<div class="recommandation">
+                <span>${q.sujet}</span>
+                <span class="rec-score">${note}/20</span>
+            </div>`;
+        });
+        html += `</div>`;
+
+        const sujetsFaibles = {};
+        stats.quiz.forEach(q => {
+            const note = q.score / q.total;
+            if (note < 0.6) {
+                sujetsFaibles[q.sujet] = (sujetsFaibles[q.sujet] || 0) + 1;
+            }
+        });
+
+        if (Object.keys(sujetsFaibles).length > 0) {
+            html += `<div style="margin-top:20px"><div class="stats-section-title">Recommandations</div>`;
+            Object.keys(sujetsFaibles).forEach(sujet => {
+                html += `<div class="recommandation">Révisez : <strong>${sujet}</strong></div>`;
+            });
+            html += `</div>`;
+        }
+    } else {
+        html += `<p style="text-align:center; color:var(--text-dim); margin-top:20px; font-size:14px">Passez votre premier quiz pour voir vos statistiques.</p>`;
+    }
+
+    container.innerHTML = html;
+    ouvrirModal('modal-stats');
+
+    if (totalQuiz > 0) {
+        setTimeout(() => {
+            const ctx = document.getElementById('chart-scores');
+            if (ctx && typeof Chart !== 'undefined') {
+                const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#667eea';
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: stats.quiz.map((_, i) => `${i + 1}`),
+                        datasets: [{
+                            label: 'Score /20',
+                            data: stats.quiz.map(q => parseFloat((q.score / q.total * 20).toFixed(1))),
+                            borderColor: accentColor,
+                            backgroundColor: accentColor + '20',
+                            tension: 0.4,
+                            fill: true,
+                            pointBackgroundColor: accentColor,
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 20,
+                                ticks: { color: '#888', font: { size: 11 } },
+                                grid: { color: 'rgba(255,255,255,0.05)' }
+                            },
+                            x: {
+                                ticks: { color: '#888', font: { size: 11 } },
+                                grid: { display: false }
+                            }
+                        }
+                    }
+                });
+            }
+        }, 100);
+    }
+}
+
+// ============ MARKDOWN ============
+function rendreMarkdown(texte) {
+    if (typeof marked !== 'undefined') {
+        try {
+            return marked.parse(texte);
+        } catch (e) {
+            return texte.replace(/\n/g, '<br>');
+        }
+    }
+    return texte.replace(/\n/g, '<br>');
+}
+
+// ============ SIDEBAR (CORRIGÉE) ============
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    if (!sidebar) return;
+    
+    sidebar.classList.toggle('hidden');
+    
+    const isMobile = window.innerWidth <= 768;
+    if (overlay) {
+        if (isMobile && !sidebar.classList.contains('hidden')) {
+            overlay.classList.add('show');
+        } else {
+            overlay.classList.remove('show');
+        }
+    }
+}
+
+function toggleMenuProfil(event) {
+    event.stopPropagation();
+    document.getElementById('menu-profil').classList.toggle('show');
+}
+
+document.addEventListener('click', () => {
+    const menu = document.getElementById('menu-profil');
+    if (menu) menu.classList.remove('show');
+});
+
+// ============ ACCUEIL ============
 function mettreAJourMessageAccueil() {
     const el = document.getElementById('welcome-message');
     if (!el) return;
@@ -57,19 +253,7 @@ function mettreAJourMessageAccueil() {
     el.innerText = liste[Math.floor(Math.random() * liste.length)];
 }
 
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('hidden'); }
-
-function toggleMenuProfil(event) {
-    event.stopPropagation();
-    document.getElementById('menu-profil').classList.toggle('show');
-}
-
-document.addEventListener('click', () => {
-    const menu = document.getElementById('menu-profil');
-    if (menu) menu.classList.remove('show');
-});
-
-// === HISTORIQUE ===
+// ============ HISTORIQUE ============
 function chargerConversations() {
     const cle = `nexa_conversations_${utilisateur.email}`;
     conversations = JSON.parse(localStorage.getItem(cle) || '[]');
@@ -84,6 +268,7 @@ function sauvegarderConversations() {
 
 function afficherHistorique() {
     const container = document.getElementById('historique');
+    if (!container) return;
     container.innerHTML = '';
     const triees = [...conversations].sort((a, b) => {
         if (a.epingle && !b.epingle) return -1;
@@ -106,13 +291,11 @@ function afficherHistorique() {
         actions.className = 'history-actions';
 
         const btnEpingler = document.createElement('button');
-        btnEpingler.title = conv.epingle ? "Désépingler" : "Épingler";
         btnEpingler.innerHTML = conv.epingle ? '<i data-lucide="pin-off"></i>' : '<i data-lucide="pin"></i>';
         btnEpingler.onclick = (e) => { e.stopPropagation(); toggleEpingler(conv.id); };
         actions.appendChild(btnEpingler);
 
         const btnSuppr = document.createElement('button');
-        btnSuppr.title = "Supprimer";
         btnSuppr.innerHTML = '<i data-lucide="trash-2"></i>';
         btnSuppr.onclick = (e) => { e.stopPropagation(); supprimerConversation(conv.id); };
         actions.appendChild(btnSuppr);
@@ -151,16 +334,21 @@ function nouveauChat() {
             <div class="welcome-logo"><img src="logo.png" alt="Nexa AI"></div>
             <h1 id="welcome-message"></h1>
             <div class="welcome-suggestions">
-                <button onclick="suggestionRapide('Fais-moi un quiz sur les fractions')">📝 Quiz</button>
-                <button onclick="suggestionRapide('Crée une fiche sur la Révolution française')">📚 Fiche</button>
-                <button onclick="suggestionRapide('Génère mon CV')">📄 CV</button>
-                <button onclick="suggestionRapide('Corrige ce texte : ')">✅ Corriger</button>
+                <button onclick="suggestionRapide('Fais-moi un quiz sur les fractions')"><i data-lucide="list-checks"></i> Quiz</button>
+                <button onclick="suggestionRapide('Crée une fiche sur la Révolution française')"><i data-lucide="book-open"></i> Fiche</button>
+                <button onclick="suggestionRapide('Génère mon CV')"><i data-lucide="file-text"></i> CV</button>
+                <button onclick="suggestionRapide('Crée un document Word sur les fractions')"><i data-lucide="file-type"></i> Word</button>
             </div>
         </div>
     `;
     mettreAJourMessageAccueil();
     afficherHistorique();
     lucide.createIcons();
+    if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.add('hidden');
+        const overlay = document.getElementById('overlay');
+        if (overlay) overlay.classList.remove('show');
+    }
 }
 
 function suggestionRapide(texte) {
@@ -174,9 +362,17 @@ function ouvrirConversation(id) {
     conversationActuelle = conv;
     const chat = document.getElementById('chat');
     chat.innerHTML = '';
-    conv.messages.forEach(msg => afficherMessage(msg.texte, msg.type, false));
+    conv.messages.forEach(msg => {
+        if (msg.markdown) afficherMessage(msg.texte, msg.type, false, true);
+        else afficherMessage(msg.texte, msg.type, false);
+    });
     afficherHistorique();
     chat.scrollTop = chat.scrollHeight;
+    if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.add('hidden');
+        const overlay = document.getElementById('overlay');
+        if (overlay) overlay.classList.remove('show');
+    }
 }
 
 function creerConversation(premierMessage) {
@@ -194,17 +390,17 @@ function creerConversation(premierMessage) {
     return nouvelle;
 }
 
-// === DÉTECTION TYPE DEMANDE ===
+// ============ DÉTECTION ============
 function detecterTypeDemande(message) {
     const msg = message.toLowerCase();
 
-    if (msg.includes("document word") || msg.includes("fichier word") || msg.includes("génère un word") || msg.includes("crée un word") || msg.includes(".docx")) {
-        let sujet = message.replace(/.*(?:word|document word|fichier word)[\s:]*/i, '').trim();
+    if (msg.includes("document word") || msg.includes("fichier word") || msg.includes("génère un word") || msg.includes("crée un word") || msg.includes("word sur") || msg.includes(".docx")) {
+        let sujet = message.replace(/.*(?:word|document word|fichier word)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "word", sujet: sujet || "document" };
     }
 
-    if (msg.includes("tableau excel") || msg.includes("fichier excel") || msg.includes("génère un excel") || msg.includes(".xlsx")) {
-        let sujet = message.replace(/.*(?:excel|tableau excel|fichier excel)[\s:]*/i, '').trim();
+    if (msg.includes("tableau excel") || msg.includes("fichier excel") || msg.includes("génère un excel") || msg.includes("excel sur") || msg.includes(".xlsx")) {
+        let sujet = message.replace(/.*(?:excel|tableau excel|fichier excel)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "excel", sujet: sujet || "données" };
     }
 
@@ -214,7 +410,7 @@ function detecterTypeDemande(message) {
     }
 
     if (msg.includes("pdf") || msg.includes(".pdf")) {
-        let sujet = message.replace(/.*(?:pdf)[\s:]*/i, '').trim();
+        let sujet = message.replace(/.*(?:pdf)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "pdf", sujet: sujet || "document" };
     }
 
@@ -247,7 +443,7 @@ function detecterTypeDemande(message) {
     return { type: "chat" };
 }
 
-// === ENVOI MESSAGE ===
+// ============ ENVOI MESSAGE ============
 async function envoyerMessage() {
     const input = document.getElementById('message');
     const message = input.value.trim();
@@ -265,25 +461,21 @@ async function envoyerMessage() {
     input.value = '';
     input.disabled = true;
 
-    const loadingId = afficherMessage('...', 'bot', true);
+    const loadingId = afficherLoading();
 
     try {
         const demande = detecterTypeDemande(message);
 
-        // Documents
-        if (demande.type === "word" || demande.type === "excel" || demande.type === "pptx" || demande.type === "pdf") {
-            const loadingEl = document.getElementById(loadingId);
-            if (loadingEl) loadingEl.remove();
+        if (["word", "excel", "pptx", "pdf"].includes(demande.type)) {
+            supprimerLoading(loadingId);
             await telechargerDocument(demande.type, demande.sujet);
             input.disabled = false;
             input.focus();
             return;
         }
 
-        // Image
         if (demande.type === "image") {
-            const loadingEl = document.getElementById(loadingId);
-            if (loadingEl) loadingEl.remove();
+            supprimerLoading(loadingId);
             await genererImage(demande.sujet);
             input.disabled = false;
             input.focus();
@@ -300,7 +492,8 @@ async function envoyerMessage() {
 
         if (rechercheActive) {
             rechercheActive = false;
-            document.getElementById('btn-recherche').classList.remove('active');
+            const btn = document.getElementById('btn-recherche');
+            if (btn) btn.classList.remove('active');
         }
 
         if (demande.type === "quiz") {
@@ -324,40 +517,90 @@ async function envoyerMessage() {
         });
         const data = await response.json();
 
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) loadingEl.remove();
+        supprimerLoading(loadingId);
 
         if (demande.type === "quiz") {
-            afficherQuiz(data.quiz || data.reply);
+            afficherQuiz(data.quiz || data.reply, demande.sujet);
             conversationActuelle.messages.push({
                 texte: "Quiz généré",
                 type: 'bot',
                 date: new Date().toISOString()
             });
         } else {
-            afficherMessage(data.reply, 'bot', true);
+            afficherMessage(data.reply, 'bot', true, true);
             conversationActuelle.messages.push({
                 texte: data.reply,
                 type: 'bot',
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
+                markdown: true
             });
         }
         sauvegarderConversations();
 
     } catch (error) {
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) {
-            const contentEl = loadingEl.querySelector('.content');
-            if (contentEl) contentEl.innerText = "❌ Erreur de connexion.";
-        }
+        supprimerLoading(loadingId);
+        afficherMessage("Erreur de connexion.", 'bot', true);
     }
 
     input.disabled = false;
     input.focus();
 }
 
-// === QUIZ INTERACTIF ===
-function afficherQuiz(contenu) {
+// ============ LOADING ============
+function afficherLoading() {
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    const id = 'loading-' + Date.now();
+    div.id = id;
+    div.className = 'message bot';
+    div.innerHTML = `
+        <div class="avatar"><img src="logo.png" alt="Nexa"></div>
+        <div class="content">
+            <div class="loading-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+    `;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return id;
+}
+
+function supprimerLoading(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+}
+
+// ============ AFFICHAGE MESSAGE ============
+function afficherMessage(texte, type, scroll = true, markdown = false) {
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    const id = 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
+    div.id = id;
+    div.className = `message ${type}`;
+
+    let avatar;
+    if (type === 'user') {
+        avatar = utilisateur.avatar
+            ? `<img src="${utilisateur.avatar}" alt="">`
+            : utilisateur.nom[0].toUpperCase();
+    } else {
+        avatar = `<img src="logo.png" alt="Nexa">`;
+    }
+
+    const contenu = (markdown && type === 'bot' && texte) ? rendreMarkdown(texte) : texte;
+
+    div.innerHTML = `
+        <div class="avatar">${avatar}</div>
+        <div class="content">${contenu}</div>
+    `;
+    chat.appendChild(div);
+    if (scroll) chat.scrollTop = chat.scrollHeight;
+    return id;
+}
+
+// ============ QUIZ ============
+function afficherQuiz(contenu, sujet = "Quiz") {
     const chat = document.getElementById('chat');
     const div = document.createElement('div');
     const id = 'quiz-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
@@ -365,12 +608,13 @@ function afficherQuiz(contenu) {
     div.className = 'message bot';
 
     const questions = parserQuiz(contenu);
+    window[`quiz_data_${id}`] = { questions, sujet };
 
     let html = `
         <div class="avatar"><img src="logo.png" alt="Nexa"></div>
         <div class="content">
             <div class="quiz-container">
-                <div class="quiz-title">📝 Quiz interactif</div>
+                <div class="quiz-title">Quiz interactif</div>
     `;
 
     questions.forEach((q, i) => {
@@ -396,7 +640,7 @@ function afficherQuiz(contenu) {
 
     html += `
                 <div class="quiz-actions">
-                    <button class="btn-quiz-validate" onclick="validerQuiz('${id}')">✅ Valider mes réponses</button>
+                    <button class="btn-quiz-validate" onclick="validerQuiz('${id}')">Valider mes réponses</button>
                 </div>
                 <div id="feedback-${id}"></div>
             </div>
@@ -404,7 +648,6 @@ function afficherQuiz(contenu) {
     `;
 
     div.innerHTML = html;
-    div.dataset.questions = JSON.stringify(questions);
     chat.appendChild(div);
     chat.scrollTop = chat.scrollHeight;
     return id;
@@ -422,12 +665,12 @@ function parserQuiz(texte) {
 
         if (matchQuestion && !ligne.match(/^[A-D]\)/)) {
             if (questionActuelle) questions.push(questionActuelle);
-            questionActuelle = { question: matchQuestion[2], options: [], reponse: null };
+            questionActuelle = { question: matchQuestion[2].replace(/\*\*/g, ''), options: [], reponse: null };
             return;
         }
         if (matchQuestionSimple && !ligne.match(/^[A-D]\)/)) {
             if (questionActuelle) questions.push(questionActuelle);
-            questionActuelle = { question: matchQuestionSimple[2], options: [], reponse: null };
+            questionActuelle = { question: matchQuestionSimple[2].replace(/\*\*/g, ''), options: [], reponse: null };
             return;
         }
 
@@ -458,7 +701,9 @@ function selectionnerOption(qIndex, oIndex, quizId) {
 
 function validerQuiz(quizId) {
     const quizDiv = document.getElementById(quizId);
-    const questions = JSON.parse(quizDiv.dataset.questions);
+    const data = window[`quiz_data_${quizId}`];
+    if (!data) return;
+    const { questions, sujet } = data;
     let bonnes = 0;
     let total = questions.length;
 
@@ -486,39 +731,16 @@ function validerQuiz(quizId) {
         const note = total > 0 ? Math.round((bonnes / total) * 20) : 0;
         feedback.innerHTML = `
             <div class="quiz-feedback success">
-                ✅ Score : ${bonnes}/${total} — Note : ${note}/20
+                Score : ${bonnes}/${total} — Note : ${note}/20
             </div>
         `;
     }
 
+    enregistrerScoreQuiz(sujet, bonnes, total);
+
     quizDiv.querySelectorAll('.quiz-option').forEach(o => o.style.pointerEvents = 'none');
     const btn = quizDiv.querySelector('.btn-quiz-validate');
     if (btn) btn.disabled = true;
-}
-
-function afficherMessage(texte, type, scroll = true) {
-    const chat = document.getElementById('chat');
-    const div = document.createElement('div');
-    const id = 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
-    div.id = id;
-    div.className = `message ${type}`;
-
-    let avatar;
-    if (type === 'user') {
-        avatar = utilisateur.avatar
-            ? `<img src="${utilisateur.avatar}" alt="">`
-            : utilisateur.nom[0].toUpperCase();
-    } else {
-        avatar = `<img src="logo.png" alt="Nexa">`;
-    }
-
-    div.innerHTML = `
-        <div class="avatar">${avatar}</div>
-        <div class="content">${texte}</div>
-    `;
-    chat.appendChild(div);
-    if (scroll) chat.scrollTop = chat.scrollHeight;
-    return id;
 }
 
 function rechercherConversations() {
@@ -539,30 +761,45 @@ function rechercherConversations() {
         });
 }
 
-// === MODALES ===
-function ouvrirModal(id) { document.getElementById(id).classList.add('show'); lucide.createIcons(); }
-function fermerModal(id) { document.getElementById(id).classList.remove('show'); }
+// ============ MODALES ============
+function ouvrirModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.add('show');
+    lucide.createIcons();
+}
+function fermerModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.remove('show');
+}
 function ouvrirParametres() { ouvrirModal('modal-parametres'); }
 function ouvrirAide() { ouvrirModal('modal-aide'); }
 
 function personnaliserIA() {
-    document.getElementById('persona-input').value = persona;
+    const input = document.getElementById('persona-input');
+    if (input) input.value = persona;
     ouvrirModal('modal-ia');
 }
 
-function suggestionPersona(texte) { document.getElementById('persona-input').value = texte; }
+function suggestionPersona(texte) {
+    const input = document.getElementById('persona-input');
+    if (input) input.value = texte;
+}
 
 function sauvegarderPersona() {
-    persona = document.getElementById('persona-input').value.trim();
+    const input = document.getElementById('persona-input');
+    if (input) persona = input.value.trim();
     localStorage.setItem('nexa_persona', persona);
     fermerModal('modal-ia');
     mettreAJourMessageAccueil();
 }
 
 function modifierProfil() {
-    document.getElementById('edit-avatar').src = utilisateur.avatar || 'logo.png';
-    document.getElementById('edit-name').value = utilisateur.nom || '';
-    document.getElementById('edit-bio').value = utilisateur.bio || '';
+    const avatarEl = document.getElementById('edit-avatar');
+    if (avatarEl) avatarEl.src = utilisateur.avatar || 'logo.png';
+    const nameEl = document.getElementById('edit-name');
+    if (nameEl) nameEl.value = utilisateur.nom || '';
+    const bioEl = document.getElementById('edit-bio');
+    if (bioEl) bioEl.value = utilisateur.bio || '';
     ouvrirModal('modal-profil');
 }
 
@@ -570,14 +807,21 @@ function changerAvatar(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => { document.getElementById('edit-avatar').src = e.target.result; };
+    reader.onload = (e) => {
+        const avatarEl = document.getElementById('edit-avatar');
+        if (avatarEl) avatarEl.src = e.target.result;
+    };
     reader.readAsDataURL(file);
 }
 
 function sauvegarderProfil() {
-    const nom = document.getElementById('edit-name').value.trim();
-    const bio = document.getElementById('edit-bio').value.trim();
-    const avatar = document.getElementById('edit-avatar').src;
+    const nameEl = document.getElementById('edit-name');
+    const bioEl = document.getElementById('edit-bio');
+    const avatarEl = document.getElementById('edit-avatar');
+    
+    const nom = nameEl ? nameEl.value.trim() : '';
+    const bio = bioEl ? bioEl.value.trim() : '';
+    const avatar = avatarEl ? avatarEl.src : '';
 
     if (nom) {
         utilisateur.nom = nom;
@@ -585,22 +829,47 @@ function sauvegarderProfil() {
         utilisateur.avatar = avatar;
         localStorage.setItem('nexa_user', JSON.stringify(utilisateur));
 
-        document.getElementById('user-name').innerText = nom;
-        document.getElementById('user-bio').innerText = bio || 'Free';
-        document.getElementById('user-avatar-img').src = avatar;
+        const userNameEl = document.getElementById('user-name');
+        if (userNameEl) userNameEl.innerText = nom;
+        const userBioEl = document.getElementById('user-bio');
+        if (userBioEl) userBioEl.innerText = bio || 'Free';
+        const avatarImg = document.getElementById('user-avatar-img');
+        if (avatarImg) avatarImg.src = avatar;
     }
     fermerModal('modal-profil');
 }
 
-// === PRÉFÉRENCES ===
+// ============ PRÉFÉRENCES ============
 function toggleDarkMode() {
     const isLight = document.body.classList.toggle('light');
     localStorage.setItem('nexa_dark', !isLight);
+    const toggle = document.getElementById('toggle-dark');
+    if (toggle) {
+        if (isLight) toggle.classList.remove('active');
+        else toggle.classList.add('active');
+    }
 }
 
-function setAccent(couleur) {
+function setAccent(couleur, event) {
     document.documentElement.style.setProperty('--accent', couleur);
     localStorage.setItem('nexa_accent', couleur);
+    const preview = document.getElementById('color-preview');
+    if (preview) preview.style.background = couleur;
+    const custom = document.getElementById('custom-color');
+    if (custom) custom.value = couleur;
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+    if (event && event.target) {
+        event.target.classList.add('selected');
+    }
+}
+
+function appliquerCouleurPerso(input) {
+    setAccent(input.value);
+}
+
+function togglePalette() {
+    const p = document.getElementById('color-palette');
+    if (p) p.classList.toggle('show');
 }
 
 function changerLangue() {
@@ -611,12 +880,12 @@ function changerLangue() {
 
 function traduireInterface(langue) {
     const t = {
-        fr: { nouveauChat: "Nouveau chat", rechercher: "Rechercher...", recents: "Récents", poser: "Poser une question...", parametres: "Paramètres", profil: "Modifier le profil", personnaliser: "Personnaliser Nexa AI", aide: "Aide", deconnexion: "Déconnexion" },
-        en: { nouveauChat: "New chat", rechercher: "Search...", recents: "Recent", poser: "Ask a question...", parametres: "Settings", profil: "Edit profile", personnaliser: "Customize Nexa AI", aide: "Help", deconnexion: "Logout" },
-        mg: { nouveauChat: "Resaka vaovao", rechercher: "Hikaroka...", recents: "Vao haingana", poser: "Mametraha fanontaniana...", parametres: "Kirakira", profil: "Hanova mombamomba", personnaliser: "Hanamboatra an'i Nexa AI", aide: "Fanampiana", deconnexion: "Hiala" },
-        es: { nouveauChat: "Nuevo chat", rechercher: "Buscar...", recents: "Recientes", poser: "Haz una pregunta...", parametres: "Ajustes", profil: "Editar perfil", personnaliser: "Personalizar Nexa AI", aide: "Ayuda", deconnexion: "Cerrar sesión" },
-        zh: { nouveauChat: "新聊天", rechercher: "搜索...", recents: "最近", poser: "提问...", parametres: "设置", profil: "编辑个人资料", personnaliser: "自定义 Nexa AI", aide: "帮助", deconnexion: "退出" }
-    }[langue] || { nouveauChat: "Nouveau chat", rechercher: "Rechercher...", recents: "Récents", poser: "Poser une question...", parametres: "Paramètres", profil: "Modifier le profil", personnaliser: "Personnaliser Nexa AI", aide: "Aide", deconnexion: "Déconnexion" };
+        fr: { nouveauChat: "Nouveau chat", rechercher: "Rechercher...", recents: "Récents", poser: "Poser une question...", parametres: "Paramètres", stats: "Statistiques", profil: "Modifier le profil", personnaliser: "Personnaliser Nexa AI", aide: "Aide", deconnexion: "Déconnexion" },
+        en: { nouveauChat: "New chat", rechercher: "Search...", recents: "Recent", poser: "Ask a question...", parametres: "Settings", stats: "Statistics", profil: "Edit profile", personnaliser: "Customize Nexa AI", aide: "Help", deconnexion: "Logout" },
+        mg: { nouveauChat: "Resaka vaovao", rechercher: "Hikaroka...", recents: "Vao haingana", poser: "Mametraha fanontaniana...", parametres: "Kirakira", stats: "Statistika", profil: "Hanova mombamomba", personnaliser: "Hanamboatra an'i Nexa AI", aide: "Fanampiana", deconnexion: "Hiala" },
+        es: { nouveauChat: "Nuevo chat", rechercher: "Buscar...", recents: "Recientes", poser: "Haz una pregunta...", parametres: "Ajustes", stats: "Estadísticas", profil: "Editar perfil", personnaliser: "Personalizar Nexa AI", aide: "Ayuda", deconnexion: "Cerrar sesión" },
+        zh: { nouveauChat: "新聊天", rechercher: "搜索...", recents: "最近", poser: "提问...", parametres: "设置", stats: "统计", profil: "编辑个人资料", personnaliser: "自定义 Nexa AI", aide: "帮助", deconnexion: "退出" }
+    }[langue] || { nouveauChat: "Nouveau chat", rechercher: "Rechercher...", recents: "Récents", poser: "Poser une question...", parametres: "Paramètres", stats: "Statistiques", profil: "Modifier le profil", personnaliser: "Personnaliser Nexa AI", aide: "Aide", deconnexion: "Déconnexion" };
 
     const btnNewChat = document.querySelector('.btn-new-chat span:last-child');
     if (btnNewChat) btnNewChat.innerText = t.nouveauChat;
@@ -628,22 +897,24 @@ function traduireInterface(langue) {
     if (msg) msg.placeholder = t.poser;
 
     const btns = document.querySelectorAll('.menu-profil button');
-    if (btns[0]) btns[0].innerHTML = `<i data-lucide="settings"></i> ${t.parametres}`;
-    if (btns[1]) btns[1].innerHTML = `<i data-lucide="user"></i> ${t.profil}`;
-    if (btns[2]) btns[2].innerHTML = `<i data-lucide="sparkles"></i> ${t.personnaliser}`;
-    if (btns[3]) btns[3].innerHTML = `<i data-lucide="help-circle"></i> ${t.aide}`;
-    if (btns[5]) btns[5].innerHTML = `<i data-lucide="log-out"></i> ${t.deconnexion}`;
+    if (btns[0]) btns[0].innerHTML = `<i data-lucide="bar-chart-3"></i> ${t.stats}`;
+    if (btns[1]) btns[1].innerHTML = `<i data-lucide="settings"></i> ${t.parametres}`;
+    if (btns[2]) btns[2].innerHTML = `<i data-lucide="user"></i> ${t.profil}`;
+    if (btns[3]) btns[3].innerHTML = `<i data-lucide="sparkles"></i> ${t.personnaliser}`;
+    if (btns[4]) btns[4].innerHTML = `<i data-lucide="help-circle"></i> ${t.aide}`;
+    if (btns[6]) btns[6].innerHTML = `<i data-lucide="log-out"></i> ${t.deconnexion}`;
 
     lucide.createIcons();
 }
 
-// === RECHERCHE ===
+// ============ RECHERCHE ============
 function toggleRecherche() {
     rechercheActive = !rechercheActive;
-    document.getElementById('btn-recherche').classList.toggle('active');
+    const btn = document.getElementById('btn-recherche');
+    if (btn) btn.classList.toggle('active');
 }
 
-// === ANALYSE FICHIER ===
+// ============ ANALYSE FICHIER ============
 async function analyserFichier(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -662,8 +933,9 @@ async function analyserFichier(event) {
     `;
     chat.appendChild(fileDiv);
     lucide.createIcons();
+    chat.scrollTop = chat.scrollHeight;
 
-    const loadingId = afficherMessage('...', 'bot', true);
+    const loadingId = afficherLoading();
 
     try {
         const formData = new FormData();
@@ -675,29 +947,32 @@ async function analyserFichier(event) {
         });
         const data = await response.json();
 
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) {
-            const contentEl = loadingEl.querySelector('.content');
-            if (contentEl) contentEl.innerText = data.reply;
-        }
+        supprimerLoading(loadingId);
+        afficherMessage(data.reply, 'bot', true, true);
 
         conversationActuelle.messages.push({ texte: file.name, type: 'user', date: new Date().toISOString() });
-        conversationActuelle.messages.push({ texte: data.reply, type: 'bot', date: new Date().toISOString() });
+        conversationActuelle.messages.push({ texte: data.reply, type: 'bot', date: new Date().toISOString(), markdown: true });
         sauvegarderConversations();
     } catch (e) {
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) {
-            const contentEl = loadingEl.querySelector('.content');
-            if (contentEl) contentEl.innerText = "❌ Erreur d'analyse.";
-        }
+        supprimerLoading(loadingId);
+        afficherMessage("Erreur d'analyse.", 'bot', true);
     }
 
     event.target.value = '';
 }
 
-// === GÉNÉRATION DOCUMENT ===
+// ============ GÉNÉRATION DOCUMENT ============
 async function telechargerDocument(type, sujet) {
-    const loadingId = afficherMessage(`⏳ Génération du ${type}...`, 'bot', true);
+    const chat = document.getElementById('chat');
+    const loadingId = afficherLoading();
+
+    const labels = {
+        word: { name: "Document Word", type: "DOCX", icon: "W" },
+        excel: { name: "Tableau Excel", type: "XLSX", icon: "X" },
+        pptx: { name: "Présentation", type: "PPTX", icon: "P" },
+        pdf: { name: "Document PDF", type: "PDF", icon: "PDF" }
+    };
+    const info = labels[type] || { name: "Fichier", type: type.toUpperCase(), icon: "?" };
 
     try {
         const response = await fetch(`${API_URL}/${type}`, {
@@ -706,34 +981,47 @@ async function telechargerDocument(type, sujet) {
             body: JSON.stringify({ sujet: sujet })
         });
 
+        if (!response.ok) throw new Error("Erreur API");
+
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
 
         const ext = type === 'word' ? 'docx' : type === 'excel' ? 'xlsx' : type === 'pptx' ? 'pptx' : 'pdf';
+        const filename = `nexa_${type}_${Date.now()}.${ext}`;
 
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) {
-            const contentEl = loadingEl.querySelector('.content');
-            contentEl.innerHTML = `
-                ✅ Votre fichier ${type} est prêt !<br>
-                <a href="${url}" download="nexa_${type}_${Date.now()}.${ext}" class="download-btn">
-                    <i data-lucide="download"></i> Télécharger
-                </a>
-            `;
-            lucide.createIcons();
-        }
+        supprimerLoading(loadingId);
+
+        const div = document.createElement('div');
+        div.className = 'message bot';
+        div.innerHTML = `
+            <div class="avatar"><img src="logo.png" alt="Nexa"></div>
+            <div class="content">
+                <div class="file-card">
+                    <div class="file-icon ${type}">${info.icon}</div>
+                    <div class="file-info">
+                        <div class="file-name">${sujet || 'Document'}</div>
+                        <div class="file-type">${info.name} · ${info.type}</div>
+                    </div>
+                    <a href="${url}" download="${filename}" class="file-download">
+                        <i data-lucide="download"></i> Télécharger
+                    </a>
+                </div>
+            </div>
+        `;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+        lucide.createIcons();
+
     } catch (e) {
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) {
-            const contentEl = loadingEl.querySelector('.content');
-            if (contentEl) contentEl.innerText = "❌ Erreur de génération.";
-        }
+        supprimerLoading(loadingId);
+        afficherMessage("Erreur de génération.", 'bot', true);
     }
 }
 
-// === GÉNÉRATION IMAGE ===
+// ============ GÉNÉRATION IMAGE ============
 async function genererImage(prompt) {
-    const loadingId = afficherMessage('⏳ Génération de l\'image...', 'bot', true);
+    const chat = document.getElementById('chat');
+    const loadingId = afficherLoading();
 
     try {
         const response = await fetch(`${API_URL}/image`, {
@@ -743,19 +1031,29 @@ async function genererImage(prompt) {
         });
         const data = await response.json();
 
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) {
-            const contentEl = loadingEl.querySelector('.content');
-            contentEl.innerHTML = `
-                🖼️ Image générée :<br>
-                <img src="${data.url}" class="generated-image" alt="${prompt}">
-            `;
-        }
+        supprimerLoading(loadingId);
+
+        const div = document.createElement('div');
+        div.className = 'message bot';
+        div.innerHTML = `
+            <div class="avatar"><img src="logo.png" alt="Nexa"></div>
+            <div class="content">
+                <div class="generated-image-container">
+                    <img src="${data.url}" class="generated-image" alt="${prompt}">
+                    <div class="image-actions">
+                        <a href="${data.url}" download="nexa_image_${Date.now()}.jpg" class="file-download">
+                            <i data-lucide="download"></i> Télécharger
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+        lucide.createIcons();
+
     } catch (e) {
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) {
-            const contentEl = loadingEl.querySelector('.content');
-            if (contentEl) contentEl.innerText = "❌ Erreur de génération.";
-        }
+        supprimerLoading(loadingId);
+        afficherMessage("Erreur de génération d'image.", 'bot', true);
     }
 }
