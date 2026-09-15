@@ -140,6 +140,10 @@
             <i data-lucide="x"></i>
         </button>
 
+        <button class="voice-pause" id="voice-pause" onclick="togglePauseVocal()">
+            <i data-lucide="pause"></i>
+        </button>
+
         <div class="voice-container">
             <div class="voice-orb-container">
                 <div class="voice-orb" id="voice-orb">
@@ -150,14 +154,10 @@
                 <div class="voice-ring ring-3"></div>
             </div>
 
-            <div class="voice-status" id="voice-status">Appuyez sur le micro pour parler</div>
+            <div class="voice-status" id="voice-status">Je vous écoute...</div>
             <div class="voice-transcript" id="voice-transcript"></div>
             <div class="voice-response" id="voice-response"></div>
         </div>
-
-        <button class="voice-mic" id="voice-mic" onclick="toggleVoiceRecording()">
-            <i data-lucide="mic"></i>
-        </button>
     </div>
 
     <!-- LOGO FLOTTANT -->
