@@ -4,16 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Nexa AI</title>
     <link rel="icon" type="image/png" href="logo.png">
     <link rel="apple-touch-icon" href="logo.png">
+    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <!-- OVERLAY (ferme la sidebar sur mobile) -->
+    <!-- BANNIÈRE INSTALLER -->
+    <div class="install-banner" id="install-banner">
+        <div class="install-content">
+            <img src="logo.png" alt="Nexa AI">
+            <div class="install-text">
+                <strong>Installer Nexa AI</strong>
+                <span>Accès rapide depuis votre écran d'accueil</span>
+            </div>
+        </div>
+        <div class="install-actions">
+            <button class="install-btn-yes" onclick="installerPWA()">Installer</button>
+            <button class="install-btn-no" onclick="fermerBanniere()">Plus tard</button>
+        </div>
+    </div>
+
+    <!-- OVERLAY -->
     <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
     <div class="app">
@@ -105,11 +123,36 @@
                         <i data-lucide="globe"></i>
                     </button>
 
+                    <button class="btn-voice" id="btn-voice" onclick="toggleVoice()" title="Dicter">
+                        <i data-lucide="mic"></i>
+                    </button>
+
                     <input type="text" id="message" placeholder="Poser une question..." onkeypress="if(event.key==='Enter') envoyerMessage()">
                     <button class="btn-send" onclick="envoyerMessage()"><i data-lucide="arrow-up"></i></button>
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- LOGO FLOTTANT -->
+    <button class="nexa-float" id="nexa-float" onclick="toggleFloatChat()">
+        <img src="logo.png" alt="Nexa">
+        <span class="nexa-pulse"></span>
+    </button>
+
+    <!-- MINI CHAT FLOTTANT -->
+    <div class="nexa-float-chat" id="nexa-float-chat">
+        <div class="nexa-float-header">
+            <span>Nexa AI</span>
+            <button onclick="toggleFloatChat()"><i data-lucide="x"></i></button>
+        </div>
+        <div class="nexa-float-body" id="nexa-float-body">
+            <p class="nexa-float-msg bot">Salut ! Pose-moi une question rapide.</p>
+        </div>
+        <div class="nexa-float-input">
+            <input type="text" id="nexa-float-message" placeholder="Question rapide..." onkeypress="if(event.key==='Enter') envoyerFloatMessage()">
+            <button onclick="envoyerFloatMessage()"><i data-lucide="arrow-up"></i></button>
+        </div>
     </div>
 
     <!-- MODALE STATISTIQUES -->
@@ -135,7 +178,10 @@
                     <label>Mode sombre</label>
                     <div class="toggle-switch active" id="toggle-dark" onclick="toggleDarkMode()"></div>
                 </div>
-
+                <div class="setting-item">
+                    <label>Notifications</label>
+                    <div class="toggle-switch" id="toggle-notif" onclick="toggleNotifications()"></div>
+                </div>
                 <div class="setting-item">
                     <label>Langue de l'interface</label>
                     <select id="langue-select" onchange="changerLangue()">
@@ -146,7 +192,6 @@
                         <option value="zh">🇨🇳 中文</option>
                     </select>
                 </div>
-
                 <div class="setting-item" style="flex-direction: column; align-items: stretch; gap: 10px;">
                     <label>Accentuation</label>
                     <button class="color-picker-btn" onclick="togglePalette()">
@@ -221,6 +266,12 @@
                     <li>"Génère mon CV"</li>
                     <li>"Crée un document Word sur..."</li>
                     <li>"Génère une image de..."</li>
+                </ul>
+                <p><strong>Astuces :</strong></p>
+                <ul>
+                    <li>🎤 Cliquez sur le micro pour dicter</li>
+                    <li>🔊 Cliquez sur 🔊 pour écouter la réponse</li>
+                    <li>📋 Cliquez sur Copier pour copier</li>
                 </ul>
             </div>
         </div>
