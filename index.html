@@ -2,18 +2,27 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a0a">
     <title>Nexa AI</title>
     <link rel="icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <!-- OVERLAY (ferme la sidebar sur mobile) -->
+    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
     <div class="app">
+        <!-- SIDEBAR -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-top">
                 <button class="btn-toggle" onclick="toggleSidebar()"><i data-lucide="panel-left-close"></i></button>
                 <span class="app-brand">Nexa AI</span>
+                <button class="btn-close-mobile" onclick="toggleSidebar()"><i data-lucide="x"></i></button>
             </div>
 
             <div class="sidebar-new-chat">
@@ -45,6 +54,7 @@
                 </div>
 
                 <div class="menu-profil" id="menu-profil">
+                    <button onclick="ouvrirStats()"><i data-lucide="bar-chart-3"></i> Statistiques</button>
                     <button onclick="ouvrirParametres()"><i data-lucide="settings"></i> Paramètres</button>
                     <button onclick="modifierProfil()"><i data-lucide="user"></i> Modifier le profil</button>
                     <button onclick="personnaliserIA()"><i data-lucide="sparkles"></i> Personnaliser Nexa AI</button>
@@ -55,7 +65,18 @@
             </div>
         </aside>
 
+        <!-- MAIN -->
         <main class="main">
+            <header class="mobile-header">
+                <button class="btn-hamburger" onclick="toggleSidebar()">
+                    <i data-lucide="menu"></i>
+                </button>
+                <span class="mobile-title">Nexa AI</span>
+                <button class="btn-new-chat-mobile" onclick="nouveauChat()">
+                    <i data-lucide="square-pen"></i>
+                </button>
+            </header>
+
             <button class="btn-open-sidebar" id="btn-open-sidebar" onclick="toggleSidebar()">
                 <i data-lucide="panel-left-open"></i>
             </button>
@@ -65,35 +86,46 @@
                     <div class="welcome-logo"><img src="logo.png" alt="Nexa AI"></div>
                     <h1 id="welcome-message">Comment puis-je vous aider ?</h1>
                     <div class="welcome-suggestions">
-                        <button onclick="suggestionRapide('Fais-moi un quiz sur les fractions')">📝 Quiz</button>
-                        <button onclick="suggestionRapide('Crée une fiche sur la Révolution française')">📚 Fiche</button>
-                        <button onclick="suggestionRapide('Génère mon CV')">📄 CV</button>
-                        <button onclick="suggestionRapide('Corrige ce texte : ')">✅ Corriger</button>
+                        <button onclick="suggestionRapide('Fais-moi un quiz sur les fractions')"><i data-lucide="list-checks"></i> Quiz</button>
+                        <button onclick="suggestionRapide('Crée une fiche sur la Révolution française')"><i data-lucide="book-open"></i> Fiche</button>
+                        <button onclick="suggestionRapide('Génère mon CV')"><i data-lucide="file-text"></i> CV</button>
+                        <button onclick="suggestionRapide('Crée un document Word sur les fractions')"><i data-lucide="file-type"></i> Word</button>
                     </div>
                 </div>
             </div>
 
             <div class="input-zone">
                 <div class="input-wrapper">
-    <button class="btn-attach" onclick="document.getElementById('file-input').click()" title="Joindre un fichier">
-        <i data-lucide="paperclip"></i>
-    </button>
-    <input type="file" id="file-input" onchange="analyserFichier(event)" style="display:none" accept=".pdf,.docx,.xlsx,.txt,.jpg,.jpeg,.png">
-    
-    <button class="btn-recherche" id="btn-recherche" onclick="toggleRecherche()" title="Recherche approfondie">
-        <i data-lucide="globe"></i>
-    </button>
-    
-    <input type="text" id="message" placeholder="Poser une question..." onkeypress="if(event.key==='Enter') envoyerMessage()">
-    <button class="btn-send" onclick="envoyerMessage()"><i data-lucide="arrow-up"></i></button>
-</div>
+                    <button class="btn-attach" onclick="document.getElementById('file-input').click()" title="Joindre">
+                        <i data-lucide="paperclip"></i>
+                    </button>
+                    <input type="file" id="file-input" onchange="analyserFichier(event)" style="display:none" accept=".pdf,.docx,.xlsx,.txt,.jpg,.jpeg,.png">
+
+                    <button class="btn-recherche" id="btn-recherche" onclick="toggleRecherche()" title="Recherche">
+                        <i data-lucide="globe"></i>
+                    </button>
+
+                    <input type="text" id="message" placeholder="Poser une question..." onkeypress="if(event.key==='Enter') envoyerMessage()">
+                    <button class="btn-send" onclick="envoyerMessage()"><i data-lucide="arrow-up"></i></button>
+                </div>
             </div>
         </main>
     </div>
 
+    <!-- MODALE STATISTIQUES -->
+    <div class="modal" id="modal-stats">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Statistiques</h2>
+                <button onclick="fermerModal('modal-stats')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body" id="stats-content"></div>
+        </div>
+    </div>
+
     <!-- MODALE PARAMÈTRES -->
     <div class="modal" id="modal-parametres">
-        <div class="modal-content glass">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Paramètres</h2>
                 <button onclick="fermerModal('modal-parametres')"><i data-lucide="x"></i></button>
@@ -101,8 +133,9 @@
             <div class="modal-body">
                 <div class="setting-item">
                     <label>Mode sombre</label>
-                    <input type="checkbox" id="toggle-dark" onchange="toggleDarkMode()">
+                    <div class="toggle-switch active" id="toggle-dark" onclick="toggleDarkMode()"></div>
                 </div>
+
                 <div class="setting-item">
                     <label>Langue de l'interface</label>
                     <select id="langue-select" onchange="changerLangue()">
@@ -113,15 +146,34 @@
                         <option value="zh">🇨🇳 中文</option>
                     </select>
                 </div>
-                <div class="setting-item">
+
+                <div class="setting-item" style="flex-direction: column; align-items: stretch; gap: 10px;">
                     <label>Accentuation</label>
-                    <div class="color-options">
-                        <div class="color-dot" style="background:#667eea" onclick="setAccent('#667eea')"></div>
-                        <div class="color-dot" style="background:#10a37f" onclick="setAccent('#10a37f')"></div>
-                        <div class="color-dot" style="background:#e91e63" onclick="setAccent('#e91e63')"></div>
-                        <div class="color-dot" style="background:#ff9800" onclick="setAccent('#ff9800')"></div>
-                        <div class="color-dot" style="background:#9c27b0" onclick="setAccent('#9c27b0')"></div>
-                        <div class="color-dot" style="background:#00bcd4" onclick="setAccent('#00bcd4')"></div>
+                    <button class="color-picker-btn" onclick="togglePalette()">
+                        <span class="color-preview" id="color-preview"></span>
+                        <span>Choisir une couleur</span>
+                    </button>
+                    <div class="color-palette" id="color-palette">
+                        <div class="color-swatch" style="background:#667eea" onclick="setAccent('#667eea', event)"></div>
+                        <div class="color-swatch" style="background:#10a37f" onclick="setAccent('#10a37f', event)"></div>
+                        <div class="color-swatch" style="background:#e91e63" onclick="setAccent('#e91e63', event)"></div>
+                        <div class="color-swatch" style="background:#ff9800" onclick="setAccent('#ff9800', event)"></div>
+                        <div class="color-swatch" style="background:#9c27b0" onclick="setAccent('#9c27b0', event)"></div>
+                        <div class="color-swatch" style="background:#00bcd4" onclick="setAccent('#00bcd4', event)"></div>
+                        <div class="color-swatch" style="background:#e53935" onclick="setAccent('#e53935', event)"></div>
+                        <div class="color-swatch" style="background:#43a047" onclick="setAccent('#43a047', event)"></div>
+                        <div class="color-swatch" style="background:#fb8c00" onclick="setAccent('#fb8c00', event)"></div>
+                        <div class="color-swatch" style="background:#8e24aa" onclick="setAccent('#8e24aa', event)"></div>
+                        <div class="color-swatch" style="background:#3949ab" onclick="setAccent('#3949ab', event)"></div>
+                        <div class="color-swatch" style="background:#00897b" onclick="setAccent('#00897b', event)"></div>
+                        <div class="color-swatch" style="background:#f4511e" onclick="setAccent('#f4511e', event)"></div>
+                        <div class="color-swatch" style="background:#5e35b1" onclick="setAccent('#5e35b1', event)"></div>
+                        <div class="color-swatch" style="background:#1e88e5" onclick="setAccent('#1e88e5', event)"></div>
+                        <div class="color-swatch" style="background:#c0ca33" onclick="setAccent('#c0ca33', event)"></div>
+                    </div>
+                    <div class="custom-color-row">
+                        <input type="color" id="custom-color" value="#667eea" onchange="appliquerCouleurPerso(this)">
+                        <span style="font-size:13px;color:var(--text-dim)">Couleur personnalisée</span>
                     </div>
                 </div>
             </div>
@@ -130,7 +182,7 @@
 
     <!-- MODALE PROFIL -->
     <div class="modal" id="modal-profil">
-        <div class="modal-content glass">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Modifier le profil</h2>
                 <button onclick="fermerModal('modal-profil')"><i data-lucide="x"></i></button>
@@ -140,7 +192,7 @@
                     <div class="avatar-edit">
                         <img id="edit-avatar" src="logo.png" alt="">
                         <input type="file" id="avatar-input" accept="image/*" onchange="changerAvatar(event)" style="display:none">
-                        <button onclick="document.getElementById('avatar-input').click()"><i data-lucide="camera"></i> Changer</button>
+                        <button onclick="document.getElementById('avatar-input').click()"><i data-lucide="camera"></i> Changer la photo</button>
                     </div>
                     <label>Nom</label>
                     <input type="text" id="edit-name" placeholder="Votre nom">
@@ -154,7 +206,7 @@
 
     <!-- MODALE AIDE -->
     <div class="modal" id="modal-aide">
-        <div class="modal-content glass">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Aide</h2>
                 <button onclick="fermerModal('modal-aide')"><i data-lucide="x"></i></button>
@@ -163,11 +215,12 @@
                 <p><strong>Bienvenue sur Nexa AI</strong></p>
                 <p>Demandez simplement à l'IA :</p>
                 <ul>
-                    <li>💬 "Explique-moi les fractions"</li>
-                    <li>📝 "Fais-moi un quiz sur..."</li>
-                    <li>📚 "Crée une fiche sur..."</li>
-                    <li>📄 "Génère mon CV"</li>
-                    <li>✅ "Corrige ce texte : ..."</li>
+                    <li>"Explique-moi les fractions"</li>
+                    <li>"Fais-moi un quiz sur..."</li>
+                    <li>"Crée une fiche sur..."</li>
+                    <li>"Génère mon CV"</li>
+                    <li>"Crée un document Word sur..."</li>
+                    <li>"Génère une image de..."</li>
                 </ul>
             </div>
         </div>
@@ -175,7 +228,7 @@
 
     <!-- MODALE PERSONNALISER IA -->
     <div class="modal" id="modal-ia">
-        <div class="modal-content glass">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Personnaliser Nexa AI</h2>
                 <button onclick="fermerModal('modal-ia')"><i data-lucide="x"></i></button>
