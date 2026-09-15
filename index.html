@@ -16,6 +16,17 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <!-- ANIMATION DE BIENVENUE -->
+    <div class="welcome-animation" id="welcome-animation">
+        <div class="welcome-anim-logo">
+            <img src="logo.png" alt="Nexa AI">
+            <div class="welcome-anim-ring"></div>
+        </div>
+        <h1 class="welcome-anim-title">Bienvenue</h1>
+        <h2 class="welcome-anim-name" id="welcome-anim-name">Kevin</h2>
+        <p class="welcome-anim-sub">Nexa AI est prêt à vous aider</p>
+    </div>
+
     <!-- BANNIÈRE INSTALLER -->
     <div class="install-banner" id="install-banner">
         <div class="install-content">
@@ -29,6 +40,16 @@
             <button class="install-btn-yes" onclick="installerPWA()">Installer</button>
             <button class="install-btn-no" onclick="fermerBanniere()">Plus tard</button>
         </div>
+    </div>
+
+    <!-- NOTIFICATION DIFFUSÉE -->
+    <div class="broadcast-notification" id="broadcast-notification">
+        <div class="broadcast-icon"><i data-lucide="bell"></i></div>
+        <div class="broadcast-content">
+            <strong>Annonce de Nexa AI</strong>
+            <span id="broadcast-message"></span>
+        </div>
+        <button onclick="fermerNotificationDiffusee()"><i data-lucide="x"></i></button>
     </div>
 
     <!-- OVERLAY SIDEBAR -->
@@ -77,6 +98,7 @@
                     <button onclick="modifierProfil()"><i data-lucide="user"></i> Modifier le profil</button>
                     <button onclick="personnaliserIA()"><i data-lucide="sparkles"></i> Personnaliser Nexa AI</button>
                     <button onclick="ouvrirAide()"><i data-lucide="help-circle"></i> Aide</button>
+                    <button onclick="ouvrirContact()"><i data-lucide="phone"></i> Contact</button>
                     <hr>
                     <button onclick="deconnexion()"><i data-lucide="log-out"></i> Déconnexion</button>
                 </div>
@@ -134,7 +156,7 @@
         </main>
     </div>
 
-    <!-- MODE VOCAL (OVERLAY PLEIN ÉCRAN) -->
+    <!-- MODE VOCAL -->
     <div class="voice-overlay" id="voice-overlay">
         <button class="voice-close" onclick="fermerModeVocal()">
             <i data-lucide="x"></i>
@@ -254,6 +276,47 @@
         </div>
     </div>
 
+    <!-- MODALE CONTACT -->
+    <div class="modal" id="modal-contact">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Contact</h2>
+                <button onclick="fermerModal('modal-contact')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p>Besoin d'aide ? Contactez-nous :</p>
+                <div class="contact-item">
+                    <i data-lucide="phone"></i>
+                    <div>
+                        <strong>WhatsApp</strong>
+                        <a href="https://wa.me/261336982004" target="_blank">033 69 820 04</a>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <i data-lucide="phone"></i>
+                    <div>
+                        <strong>WhatsApp 2</strong>
+                        <a href="https://wa.me/261329280234" target="_blank">032 92 802 34</a>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <i data-lucide="mail"></i>
+                    <div>
+                        <strong>Email</strong>
+                        <a href="mailto:nexa.ai.mada@gmail.com">nexa.ai.mada@gmail.com</a>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <i data-lucide="globe"></i>
+                    <div>
+                        <strong>Site</strong>
+                        <a href="https://nexa-ai-frontend-steel.vercel.app" target="_blank">Nexa AI</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MODALE AIDE -->
     <div class="modal" id="modal-aide">
         <div class="modal-content">
@@ -306,7 +369,7 @@
 
     <script src="auth.js"></script>
     <script src="script.js"></script>
-    <script src="sw.js"></script>
+     <script src="sw.js"></script>
     <script>lucide.createIcons();</script>
 </body>
 </html>
