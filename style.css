@@ -1402,3 +1402,370 @@ body {
     border-color: var(--accent);
     background: var(--bg-hover);
 }
+/* ============ BOUTON VOIX ============ */
+.btn-voice {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.btn-voice:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.btn-voice.active {
+    background: #e53935;
+    color: white;
+    animation: pulse-rec 1.5s infinite;
+}
+
+@keyframes pulse-rec {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.7); }
+    50% { box-shadow: 0 0 0 10px rgba(229, 57, 53, 0); }
+}
+
+.btn-voice svg { width: 18px; height: 18px; }
+
+/* ============ BOUTON LIRE (TTS) ============ */
+.btn-speak {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 8px;
+    transition: all 0.2s;
+}
+
+.btn-speak:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.btn-speak.speaking {
+    background: var(--accent);
+    color: white;
+}
+
+.btn-speak svg { width: 14px; height: 14px; }
+
+/* ============ BOUTON COPIER ============ */
+.btn-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 8px;
+    margin-left: 6px;
+    transition: all 0.2s;
+}
+
+.btn-copy:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.btn-copy.copied {
+    background: #10a37f;
+    color: white;
+    border-color: #10a37f;
+}
+
+.btn-copy svg { width: 14px; height: 14px; }
+
+.msg-actions {
+    display: flex;
+    gap: 0;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+
+/* ============ LOGO FLOTTANT ============ */
+.nexa-float {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+    z-index: 500;
+    transition: transform 0.3s;
+    overflow: visible;
+}
+
+.nexa-float:hover {
+    transform: scale(1.1);
+}
+
+.nexa-float img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.nexa-pulse {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.6;
+    animation: nexa-pulse-anim 2s infinite;
+    z-index: -1;
+}
+
+@keyframes nexa-pulse-anim {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ============ MINI CHAT FLOTTANT ============ */
+.nexa-float-chat {
+    display: none;
+    position: fixed;
+    bottom: 160px;
+    right: 20px;
+    width: 320px;
+    max-height: 400px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+    z-index: 500;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.nexa-float-chat.show {
+    display: flex;
+}
+
+.nexa-float-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.nexa-float-header button {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+}
+
+.nexa-float-body {
+    flex: 1;
+    padding: 12px;
+    overflow-y: auto;
+    max-height: 250px;
+}
+
+.nexa-float-msg {
+    padding: 8px 12px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.nexa-float-msg.bot {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+
+.nexa-float-msg.user {
+    background: var(--accent);
+    color: white;
+    margin-left: auto;
+    max-width: 80%;
+}
+
+.nexa-float-input {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid var(--border);
+    gap: 6px;
+}
+
+.nexa-float-input input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+}
+
+.nexa-float-input button {
+    background: var(--accent);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nexa-float-input button svg { width: 14px; height: 14px; }
+
+/* ============ BANNIÈRE INSTALLER ============ */
+.install-banner {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    max-width: 420px;
+    margin: 0 auto;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+    z-index: 1000;
+    animation: slideUpInstall 0.4s ease;
+}
+
+.install-banner.show {
+    display: block;
+}
+
+@keyframes slideUpInstall {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.install-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.install-content img {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    object-fit: cover;
+}
+
+.install-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.install-text strong {
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 3px;
+}
+
+.install-text span {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.install-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.install-btn-yes {
+    flex: 1;
+    padding: 10px;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.install-btn-no {
+    padding: 10px 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.install-btn-yes:hover { opacity: 0.9; }
+.install-btn-no:hover { background: var(--bg-hover); color: var(--text); }
+
+/* ============ MOBILE ============ */
+@media (max-width: 768px) {
+    .nexa-float {
+        bottom: 80px;
+        right: 15px;
+        width: 50px;
+        height: 50px;
+    }
+
+    .nexa-float-chat {
+        width: calc(100% - 30px);
+        right: 15px;
+        bottom: 140px;
+    }
+
+    .mobile-header {
+        padding-top: max(12px, env(safe-area-inset-top));
+    }
+
+    .install-banner {
+        bottom: 15px;
+        left: 15px;
+        right: 15px;
+    }
+
+    .install-content img {
+        width: 40px;
+        height: 40px;
+    }
+}
