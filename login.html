@@ -2,9 +2,10 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexa AI - Connexion</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Connexion - Nexa AI</title>
     <link rel="icon" type="image/png" href="logo.png">
+    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="login-page">
@@ -15,14 +16,12 @@
         <h1>Nexa AI</h1>
         <p id="login-subtitle">Connectez-vous pour continuer</p>
 
-        <!-- FORMULAIRE DE CONNEXION -->
         <form id="form-connexion" onsubmit="connexion(event)">
             <input type="email" id="email" placeholder="Email" required autocomplete="email">
             <input type="password" id="password" placeholder="Mot de passe" required autocomplete="current-password">
             <button type="submit">Se connecter</button>
         </form>
 
-        <!-- FORMULAIRE D'INSCRIPTION (caché par défaut) -->
         <form id="form-inscription" onsubmit="inscription(event)" style="display:none">
             <input type="email" id="ins-email" placeholder="Email" required autocomplete="email">
             <input type="text" id="ins-nom" placeholder="Votre nom" required autocomplete="name">
