@@ -140,10 +140,6 @@
             <i data-lucide="x"></i>
         </button>
 
-        <button class="voice-pause" id="voice-pause" onclick="togglePauseVocal()">
-            <i data-lucide="pause"></i>
-        </button>
-
         <div class="voice-container">
             <div class="voice-orb-container">
                 <div class="voice-orb" id="voice-orb">
@@ -154,31 +150,14 @@
                 <div class="voice-ring ring-3"></div>
             </div>
 
-            <div class="voice-status" id="voice-status">Je vous écoute...</div>
+            <div class="voice-status" id="voice-status">Appuyez sur le micro pour parler</div>
             <div class="voice-transcript" id="voice-transcript"></div>
             <div class="voice-response" id="voice-response"></div>
         </div>
-    </div>
 
-    <!-- LOGO FLOTTANT -->
-    <button class="nexa-float" id="nexa-float" onclick="toggleFloatChat()">
-        <img src="logo.png" alt="Nexa">
-        <span class="nexa-pulse"></span>
-    </button>
-
-    <!-- MINI CHAT FLOTTANT -->
-    <div class="nexa-float-chat" id="nexa-float-chat">
-        <div class="nexa-float-header">
-            <span>Nexa AI</span>
-            <button onclick="toggleFloatChat()"><i data-lucide="x"></i></button>
-        </div>
-        <div class="nexa-float-body" id="nexa-float-body">
-            <p class="nexa-float-msg bot">Salut ! Pose-moi une question rapide.</p>
-        </div>
-        <div class="nexa-float-input">
-            <input type="text" id="nexa-float-message" placeholder="Question rapide..." onkeypress="if(event.key==='Enter') envoyerFloatMessage()">
-            <button onclick="envoyerFloatMessage()"><i data-lucide="arrow-up"></i></button>
-        </div>
+        <button class="voice-mic" id="voice-mic" onclick="toggleVoiceRecording()">
+            <i data-lucide="mic"></i>
+        </button>
     </div>
 
     <!-- MODALE STATISTIQUES -->
