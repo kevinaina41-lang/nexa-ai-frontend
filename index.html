@@ -31,7 +31,7 @@
         </div>
     </div>
 
-    <!-- OVERLAY -->
+    <!-- OVERLAY SIDEBAR -->
     <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
     <div class="app">
@@ -123,7 +123,7 @@
                         <i data-lucide="globe"></i>
                     </button>
 
-                    <button class="btn-voice" id="btn-voice" onclick="toggleVoice()" title="Dicter">
+                    <button class="btn-voice" id="btn-voice" onclick="ouvrirModeVocal()" title="Mode vocal">
                         <i data-lucide="mic"></i>
                     </button>
 
@@ -132,6 +132,32 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- MODE VOCAL (OVERLAY PLEIN ÉCRAN) -->
+    <div class="voice-overlay" id="voice-overlay">
+        <button class="voice-close" onclick="fermerModeVocal()">
+            <i data-lucide="x"></i>
+        </button>
+
+        <div class="voice-container">
+            <div class="voice-orb-container">
+                <div class="voice-orb" id="voice-orb">
+                    <img src="logo.png" alt="Nexa">
+                </div>
+                <div class="voice-ring ring-1"></div>
+                <div class="voice-ring ring-2"></div>
+                <div class="voice-ring ring-3"></div>
+            </div>
+
+            <div class="voice-status" id="voice-status">Appuyez sur le micro pour parler</div>
+            <div class="voice-transcript" id="voice-transcript"></div>
+            <div class="voice-response" id="voice-response"></div>
+        </div>
+
+        <button class="voice-mic" id="voice-mic" onclick="toggleVoiceRecording()">
+            <i data-lucide="mic"></i>
+        </button>
     </div>
 
     <!-- LOGO FLOTTANT -->
@@ -269,7 +295,7 @@
                 </ul>
                 <p><strong>Astuces :</strong></p>
                 <ul>
-                    <li>🎤 Cliquez sur le micro pour dicter</li>
+                    <li>🎤 Cliquez sur le micro pour le mode vocal</li>
                     <li>🔊 Cliquez sur 🔊 pour écouter la réponse</li>
                     <li>📋 Cliquez sur Copier pour copier</li>
                 </ul>
