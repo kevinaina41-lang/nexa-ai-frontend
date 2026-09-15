@@ -1,4 +1,4 @@
-// ============ HASHAGE DU MOT DE PASSE ============
+// ============ HASHAGE ============
 async function hasher(texte) {
     const buffer = new TextEncoder().encode(texte);
     const hash = await crypto.subtle.digest('SHA-256', buffer);
@@ -7,10 +7,9 @@ async function hasher(texte) {
         .join('');
 }
 
-// ============ BASCULER ENTRE CONNEXION ET INSCRIPTION ============
+// ============ BASCULER FORMULAIRE ============
 function basculerFormulaire(event) {
     if (event) event.preventDefault();
-
     const formConnexion = document.getElementById('form-connexion');
     const formInscription = document.getElementById('form-inscription');
     const subtitle = document.getElementById('login-subtitle');
@@ -18,14 +17,12 @@ function basculerFormulaire(event) {
     const lienBascule = document.getElementById('lien-bascule');
 
     if (formConnexion.style.display === 'none') {
-        // Afficher CONNEXION
         formConnexion.style.display = 'flex';
         formInscription.style.display = 'none';
         subtitle.innerText = 'Connectez-vous pour continuer';
         texteBascule.innerText = 'Pas de compte ?';
         lienBascule.innerText = "S'inscrire";
     } else {
-        // Afficher INSCRIPTION
         formConnexion.style.display = 'none';
         formInscription.style.display = 'flex';
         subtitle.innerText = 'Créez votre compte';
@@ -34,15 +31,20 @@ function basculerFormulaire(event) {
     }
 }
 
-// ============ VÉRIFICATION AU CHARGEMENT ============
+// ============ VÉRIFICATION SESSION (PERSISTANTE) ============
 window.addEventListener('DOMContentLoaded', () => {
+    // Si on est sur la page login, ne rien faire
     if (window.location.pathname.includes('login')) return;
 
+    // Vérifier si connecté (session persistante)
     const user = localStorage.getItem('nexa_user');
     if (!user) {
         window.location.href = 'login.html';
         return;
     }
+
+    // Session valide → l'utilisateur reste connecté
+    console.log('Session active pour:', JSON.parse(user).nom);
 });
 
 // ============ CONNEXION ============
@@ -70,11 +72,17 @@ async function connexion(event) {
         return;
     }
 
-    localStorage.setItem('nexa_user', JSON.stringify({
+    // SESSION PERSISTANTE
+    const session = {
         email: email,
-        nom: users[email].nom
-    }));
+        nom: users[email].nom,
+        bio: users[email].bio || 'Free',
+        avatar: users[email].avatar || null,
+        date_connexion: new Date().toISOString(),
+        expiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 an
+    };
 
+    localStorage.setItem('nexa_user', JSON.stringify(session));
     window.location.href = 'index.html';
 }
 
@@ -111,14 +119,20 @@ async function inscription(event) {
 
     const hash = await hasher(password);
 
-    users[email] = { nom: nom, password: hash };
+    users[email] = { nom: nom, password: hash, bio: 'Free', avatar: null };
     localStorage.setItem('nexa_users', JSON.stringify(users));
 
-    localStorage.setItem('nexa_user', JSON.stringify({
+    // SESSION PERSISTANTE
+    const session = {
         email: email,
-        nom: nom
-    }));
+        nom: nom,
+        bio: 'Free',
+        avatar: null,
+        date_connexion: new Date().toISOString(),
+        expiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    };
 
+    localStorage.setItem('nexa_user', JSON.stringify(session));
     alert("Compte créé avec succès !");
     window.location.href = 'index.html';
 }
