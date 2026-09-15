@@ -6,9 +6,10 @@ let conversations = [];
 let persona = "";
 let rechercheActive = false;
 let stats = null;
-let voiceActive = false;
 let recognition = null;
+let voiceRecording = false;
 let speaking = false;
+let voiceConversation = []; // Historique du mode vocal
 
 const MESSAGES_ACCUEIL = {
     "mentor": ["Que puis-je vous enseigner aujourd'hui ?", "Prêt à apprendre ?", "Comment puis-je vous guider ?"],
@@ -64,13 +65,13 @@ window.addEventListener('DOMContentLoaded', () => {
     chargerConversations();
     chargerStats();
     mettreAJourMessageAccueil();
-    initVoice();
+    initVoiceRecognition();
     initPWA();
     lucide.createIcons();
 });
 
-// ============ VOIX ============
-function initVoice() {
+// ============ VOIX : RECONNAISSANCE ============
+function initVoiceRecognition() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         console.log('Speech Recognition non supporté');
         return;
@@ -86,40 +87,173 @@ function initVoice() {
         for (let i = event.resultIndex; i < event.results.length; i++) {
             transcript += event.results[i][0].transcript;
         }
-        const input = document.getElementById('message');
-        if (input) input.value = transcript;
+        const el = document.getElementById('voice-transcript');
+        if (el) el.innerText = transcript;
     };
 
     recognition.onend = () => {
-        voiceActive = false;
-        const btn = document.getElementById('btn-voice');
-        if (btn) btn.classList.remove('active');
+        voiceRecording = false;
+        const mic = document.getElementById('voice-mic');
+        const orb = document.getElementById('voice-orb');
+        if (mic) mic.classList.remove('recording');
+        if (orb) orb.classList.remove('listening');
     };
 
     recognition.onerror = () => {
-        voiceActive = false;
-        const btn = document.getElementById('btn-voice');
-        if (btn) btn.classList.remove('active');
+        voiceRecording = false;
+        const mic = document.getElementById('voice-mic');
+        if (mic) mic.classList.remove('recording');
     };
 }
 
-function toggleVoice() {
+// ============ MODE VOCAL ============
+function ouvrirModeVocal() {
+    const overlay = document.getElementById('voice-overlay');
+    if (overlay) overlay.classList.add('show');
+    const status = document.getElementById('voice-status');
+    if (status) status.innerText = 'Appuyez sur le micro pour parler';
+    const transcript = document.getElementById('voice-transcript');
+    if (transcript) transcript.innerText = '';
+    const response = document.getElementById('voice-response');
+    if (response) response.innerText = '';
+    voiceConversation = [];
+    lucide.createIcons();
+}
+
+function fermerModeVocal() {
+    // Arrêter l'enregistrement
+    if (voiceRecording && recognition) {
+        recognition.stop();
+        voiceRecording = false;
+    }
+    // Arrêter la lecture
+    if (speaking) {
+        window.speechSynthesis.cancel();
+        speaking = false;
+    }
+    const overlay = document.getElementById('voice-overlay');
+    if (overlay) overlay.classList.remove('show');
+}
+
+function toggleVoiceRecording() {
     if (!recognition) {
         alert('La reconnaissance vocale n\'est pas supportée par votre navigateur.');
         return;
     }
-    const btn = document.getElementById('btn-voice');
-    if (voiceActive) {
+    const mic = document.getElementById('voice-mic');
+    const orb = document.getElementById('voice-orb');
+    const status = document.getElementById('voice-status');
+
+    if (voiceRecording) {
         recognition.stop();
-        voiceActive = false;
-        if (btn) btn.classList.remove('active');
+        voiceRecording = false;
+        if (mic) mic.classList.remove('recording');
+        if (orb) orb.classList.remove('listening');
+        if (status) status.innerText = 'Envoi en cours...';
     } else {
+        // Arrêter la lecture si en cours
+        if (speaking) {
+            window.speechSynthesis.cancel();
+            speaking = false;
+        }
+        voiceRecording = true;
         recognition.start();
-        voiceActive = true;
-        if (btn) btn.classList.add('active');
+        if (mic) mic.classList.add('recording');
+        if (orb) orb.classList.add('listening');
+        if (status) status.innerText = 'Je vous écoute...';
+        const transcript = document.getElementById('voice-transcript');
+        if (transcript) transcript.innerText = '';
+        const response = document.getElementById('voice-response');
+        if (response) response.innerText = '';
+    }
+
+    // Quand l'enregistrement se termine, envoyer le message
+    if (!recognition.onresult) return;
+}
+
+// Détecter la fin de la reconnaissance pour envoyer
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (recognition) {
+            const originalOnEnd = recognition.onend;
+            recognition.onend = () => {
+                if (originalOnEnd) originalOnEnd();
+                const transcript = document.getElementById('voice-transcript');
+                if (transcript && transcript.innerText.trim() && voiceRecording === false) {
+                    envoyerMessageVocal(transcript.innerText.trim());
+                }
+            };
+        }
+    }, 1000);
+});
+
+async function envoyerMessageVocal(message) {
+    const status = document.getElementById('voice-status');
+    const orb = document.getElementById('voice-orb');
+    const response = document.getElementById('voice-response');
+
+    if (status) status.innerText = 'Nexa réfléchit...';
+    if (orb) orb.classList.add('thinking');
+
+    try {
+        const response_api = await fetch(`${API_URL}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: message,
+                historique: voiceConversation.slice(-10),
+                persona: persona
+            })
+        });
+        const data = await response_api.json();
+
+        // Afficher la réponse
+        if (response) response.innerText = data.reply;
+
+        // Ajouter à l'historique vocal
+        voiceConversation.push({ type: 'user', texte: message });
+        voiceConversation.push({ type: 'bot', texte: data.reply });
+
+        // Retirer thinking, ajouter speaking
+        if (orb) {
+            orb.classList.remove('thinking');
+            orb.classList.add('speaking');
+        }
+        if (status) status.innerText = 'Nexa répond...';
+
+        // Lire la réponse
+        lireTexteVocal(data.reply, () => {
+            if (orb) orb.classList.remove('speaking');
+            if (status) status.innerText = 'Appuyez sur le micro pour parler';
+        });
+
+        // Enregistrer dans la conversation principale
+        if (!conversationActuelle) creerConversation(message);
+        conversationActuelle.messages.push({ texte: message, type: 'user', date: new Date().toISOString() });
+        conversationActuelle.messages.push({ texte: data.reply, type: 'bot', date: new Date().toISOString(), markdown: true });
+        sauvegarderConversations();
+
+    } catch (e) {
+        if (status) status.innerText = 'Erreur de connexion';
+        if (orb) orb.classList.remove('thinking');
     }
 }
 
+function lireTexteVocal(texte, onEnd) {
+    if (!('speechSynthesis' in window)) return;
+    const textePropre = texte.replace(/[#*`>|]/g, '').replace(/\n/g, '. ');
+    const utterance = new SpeechSynthesisUtterance(textePropre);
+    utterance.lang = 'fr-FR';
+    utterance.rate = 1;
+    utterance.onend = () => {
+        speaking = false;
+        if (onEnd) onEnd();
+    };
+    speaking = true;
+    window.speechSynthesis.speak(utterance);
+}
+
+// ============ VOIX : LECTURE SIMPLE ============
 function lireTexte(texte, btnElement) {
     if (!('speechSynthesis' in window)) return;
     if (speaking) {
@@ -905,7 +1039,6 @@ function sauvegarderProfil() {
         utilisateur.avatar = avatar;
         localStorage.setItem('nexa_user', JSON.stringify(utilisateur));
 
-        // Mettre à jour aussi dans nexa_users
         const users = JSON.parse(localStorage.getItem('nexa_users') || '{}');
         if (users[utilisateur.email]) {
             users[utilisateur.email].nom = nom;
