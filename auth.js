@@ -31,20 +31,46 @@ function basculerFormulaire(event) {
     }
 }
 
-// ============ VÉRIFICATION SESSION (PERSISTANTE) ============
+// ============ REDIRECTION SI DÉJÀ CONNECTÉ ============
+// Si on est sur login.html et qu'on a une session → rediriger vers index
 window.addEventListener('DOMContentLoaded', () => {
-    // Si on est sur la page login, ne rien faire
-    if (window.location.pathname.includes('login')) return;
-
-    // Vérifier si connecté (session persistante)
-    const user = localStorage.getItem('nexa_user');
-    if (!user) {
-        window.location.href = 'login.html';
-        return;
+    const isLoginPage = window.location.pathname.includes('login');
+    
+    if (isLoginPage) {
+        // Sur la page login : si déjà connecté → index.html
+        const user = localStorage.getItem('nexa_user');
+        if (user) {
+            try {
+                const u = JSON.parse(user);
+                if (u && u.email) {
+                    console.log('Session existante → redirection vers index');
+                    window.location.href = 'index.html';
+                    return;
+                }
+            } catch(e) {
+                localStorage.removeItem('nexa_user');
+            }
+        }
+    } else {
+        // Sur une autre page : si pas connecté → login.html
+        const user = localStorage.getItem('nexa_user');
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+        try {
+            const u = JSON.parse(user);
+            if (!u || !u.email) {
+                localStorage.removeItem('nexa_user');
+                window.location.href = 'login.html';
+                return;
+            }
+        } catch(e) {
+            localStorage.removeItem('nexa_user');
+            window.location.href = 'login.html';
+            return;
+        }
     }
-
-    // Session valide → l'utilisateur reste connecté
-    console.log('Session active pour:', JSON.parse(user).nom);
 });
 
 // ============ CONNEXION ============
@@ -72,17 +98,18 @@ async function connexion(event) {
         return;
     }
 
-    // SESSION PERSISTANTE
+    // ============ SESSION PERSISTANTE (1 AN) ============
     const session = {
         email: email,
         nom: users[email].nom,
         bio: users[email].bio || 'Free',
         avatar: users[email].avatar || null,
         date_connexion: new Date().toISOString(),
-        expiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 an
+        expiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
     };
 
     localStorage.setItem('nexa_user', JSON.stringify(session));
+    console.log('Session créée, redirection vers index');
     window.location.href = 'index.html';
 }
 
@@ -122,7 +149,7 @@ async function inscription(event) {
     users[email] = { nom: nom, password: hash, bio: 'Free', avatar: null };
     localStorage.setItem('nexa_users', JSON.stringify(users));
 
-    // SESSION PERSISTANTE
+    // ============ SESSION PERSISTANTE (1 AN) ============
     const session = {
         email: email,
         nom: nom,
