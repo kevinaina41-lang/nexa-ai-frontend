@@ -9,7 +9,10 @@ let stats = null;
 let recognition = null;
 let voiceRecording = false;
 let speaking = false;
-let voiceConversation = []; // Historique du mode vocal
+let voiceConversation = [];
+let voiceModeActive = false;
+let silenceTimer = null;
+let autoRestart = true;
 
 const MESSAGES_ACCUEIL = {
     "mentor": ["Que puis-je vous enseigner aujourd'hui ?", "Prêt à apprendre ?", "Comment puis-je vous guider ?"],
@@ -78,122 +81,169 @@ function initVoiceRecognition() {
     }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'fr-FR';
 
+    let finalTranscript = '';
+
+    recognition.onstart = () => {
+        voiceRecording = true;
+        finalTranscript = '';
+        const mic = document.getElementById('voice-mic');
+        const orb = document.getElementById('voice-orb');
+        const status = document.getElementById('voice-status');
+        if (mic) mic.classList.add('recording');
+        if (orb) {
+            orb.classList.remove('thinking', 'speaking');
+            orb.classList.add('listening');
+        }
+        if (status) status.innerText = 'Je vous écoute...';
+    };
+
     recognition.onresult = (event) => {
-        let transcript = '';
+        let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                finalTranscript += transcript + ' ';
+            } else {
+                interim += transcript;
+            }
         }
         const el = document.getElementById('voice-transcript');
-        if (el) el.innerText = transcript;
+        if (el) el.innerText = finalTranscript + interim;
+
+        // Réinitialiser le timer de silence
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+            if (finalTranscript.trim()) {
+                // Envoyer le message
+                envoyerMessageVocal(finalTranscript.trim());
+                finalTranscript = '';
+            }
+        }, 2000); // 2 secondes de silence
     };
 
     recognition.onend = () => {
         voiceRecording = false;
         const mic = document.getElementById('voice-mic');
-        const orb = document.getElementById('voice-orb');
         if (mic) mic.classList.remove('recording');
-        if (orb) orb.classList.remove('listening');
+        
+        // Si on est en mode vocal et pas en train de parler, relancer
+        if (voiceModeActive && autoRestart && !speaking) {
+            setTimeout(() => {
+                if (voiceModeActive && !speaking && !voiceRecording) {
+                    try { recognition.start(); } catch(e) {}
+                }
+            }, 500);
+        }
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
         voiceRecording = false;
         const mic = document.getElementById('voice-mic');
         if (mic) mic.classList.remove('recording');
+        if (event.error === 'no-speech') {
+            // Pas de problème, on relance
+            if (voiceModeActive && autoRestart) {
+                setTimeout(() => {
+                    if (voiceModeActive && !voiceRecording && !speaking) {
+                        try { recognition.start(); } catch(e) {}
+                    }
+                }, 500);
+            }
+        }
     };
 }
 
 // ============ MODE VOCAL ============
 function ouvrirModeVocal() {
+    voiceModeActive = true;
+    autoRestart = true;
     const overlay = document.getElementById('voice-overlay');
     if (overlay) overlay.classList.add('show');
     const status = document.getElementById('voice-status');
-    if (status) status.innerText = 'Appuyez sur le micro pour parler';
+    if (status) status.innerText = 'Je vous écoute...';
     const transcript = document.getElementById('voice-transcript');
     if (transcript) transcript.innerText = '';
     const response = document.getElementById('voice-response');
     if (response) response.innerText = '';
     voiceConversation = [];
+    
+    // Démarrer automatiquement l'écoute
+    setTimeout(() => {
+        if (recognition && !voiceRecording) {
+            try { recognition.start(); } catch(e) {}
+        }
+    }, 500);
+    
     lucide.createIcons();
 }
 
 function fermerModeVocal() {
+    voiceModeActive = false;
+    autoRestart = false;
+    
     // Arrêter l'enregistrement
     if (voiceRecording && recognition) {
-        recognition.stop();
+        try { recognition.stop(); } catch(e) {}
         voiceRecording = false;
     }
+    
     // Arrêter la lecture
     if (speaking) {
         window.speechSynthesis.cancel();
         speaking = false;
     }
+    
+    // Nettoyer le timer
+    if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+    }
+    
     const overlay = document.getElementById('voice-overlay');
     if (overlay) overlay.classList.remove('show');
 }
 
-function toggleVoiceRecording() {
-    if (!recognition) {
-        alert('La reconnaissance vocale n\'est pas supportée par votre navigateur.');
-        return;
-    }
-    const mic = document.getElementById('voice-mic');
-    const orb = document.getElementById('voice-orb');
-    const status = document.getElementById('voice-status');
-
-    if (voiceRecording) {
-        recognition.stop();
-        voiceRecording = false;
-        if (mic) mic.classList.remove('recording');
-        if (orb) orb.classList.remove('listening');
-        if (status) status.innerText = 'Envoi en cours...';
-    } else {
-        // Arrêter la lecture si en cours
-        if (speaking) {
-            window.speechSynthesis.cancel();
-            speaking = false;
+// Pause / Reprise
+function togglePauseVocal() {
+    autoRestart = !autoRestart;
+    const btn = document.getElementById('voice-pause');
+    if (autoRestart) {
+        if (btn) btn.innerHTML = '<i data-lucide="pause"></i>';
+        if (recognition && !voiceRecording && !speaking) {
+            try { recognition.start(); } catch(e) {}
         }
-        voiceRecording = true;
-        recognition.start();
-        if (mic) mic.classList.add('recording');
-        if (orb) orb.classList.add('listening');
-        if (status) status.innerText = 'Je vous écoute...';
-        const transcript = document.getElementById('voice-transcript');
-        if (transcript) transcript.innerText = '';
-        const response = document.getElementById('voice-response');
-        if (response) response.innerText = '';
+    } else {
+        if (btn) btn.innerHTML = '<i data-lucide="play"></i>';
+        if (recognition && voiceRecording) {
+            try { recognition.stop(); } catch(e) {}
+        }
     }
-
-    // Quand l'enregistrement se termine, envoyer le message
-    if (!recognition.onresult) return;
+    lucide.createIcons();
 }
 
-// Détecter la fin de la reconnaissance pour envoyer
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        if (recognition) {
-            const originalOnEnd = recognition.onend;
-            recognition.onend = () => {
-                if (originalOnEnd) originalOnEnd();
-                const transcript = document.getElementById('voice-transcript');
-                if (transcript && transcript.innerText.trim() && voiceRecording === false) {
-                    envoyerMessageVocal(transcript.innerText.trim());
-                }
-            };
-        }
-    }, 1000);
-});
-
+// Envoyer message vocal
 async function envoyerMessageVocal(message) {
+    if (!message.trim()) return;
+    
     const status = document.getElementById('voice-status');
     const orb = document.getElementById('voice-orb');
     const response = document.getElementById('voice-response');
+    const transcript = document.getElementById('voice-transcript');
+
+    // Arrêter l'écoute pendant la réflexion
+    if (recognition && voiceRecording) {
+        try { recognition.stop(); } catch(e) {}
+    }
 
     if (status) status.innerText = 'Nexa réfléchit...';
-    if (orb) orb.classList.add('thinking');
+    if (orb) {
+        orb.classList.remove('listening', 'speaking');
+        orb.classList.add('thinking');
+    }
 
     try {
         const response_api = await fetch(`${API_URL}/chat`, {
@@ -224,7 +274,19 @@ async function envoyerMessageVocal(message) {
         // Lire la réponse
         lireTexteVocal(data.reply, () => {
             if (orb) orb.classList.remove('speaking');
-            if (status) status.innerText = 'Appuyez sur le micro pour parler';
+            if (status) status.innerText = 'Je vous écoute...';
+            
+            // Effacer le transcript
+            if (transcript) transcript.innerText = '';
+            
+            // Relancer l'écoute après la réponse
+            if (voiceModeActive && autoRestart) {
+                setTimeout(() => {
+                    if (voiceModeActive && !voiceRecording && !speaking) {
+                        try { recognition.start(); } catch(e) {}
+                    }
+                }, 500);
+            }
         });
 
         // Enregistrer dans la conversation principale
@@ -236,11 +298,23 @@ async function envoyerMessageVocal(message) {
     } catch (e) {
         if (status) status.innerText = 'Erreur de connexion';
         if (orb) orb.classList.remove('thinking');
+        // Relancer l'écoute même en cas d'erreur
+        if (voiceModeActive && autoRestart) {
+            setTimeout(() => {
+                if (voiceModeActive && !voiceRecording) {
+                    try { recognition.start(); } catch(e) {}
+                }
+            }, 1500);
+        }
     }
 }
 
 function lireTexteVocal(texte, onEnd) {
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+        if (onEnd) onEnd();
+        return;
+    }
+    window.speechSynthesis.cancel();
     const textePropre = texte.replace(/[#*`>|]/g, '').replace(/\n/g, '. ');
     const utterance = new SpeechSynthesisUtterance(textePropre);
     utterance.lang = 'fr-FR';
@@ -249,11 +323,15 @@ function lireTexteVocal(texte, onEnd) {
         speaking = false;
         if (onEnd) onEnd();
     };
+    utterance.onerror = () => {
+        speaking = false;
+        if (onEnd) onEnd();
+    };
     speaking = true;
     window.speechSynthesis.speak(utterance);
 }
 
-// ============ VOIX : LECTURE SIMPLE ============
+// ============ LECTURE SIMPLE (bouton écouter) ============
 function lireTexte(texte, btnElement) {
     if (!('speechSynthesis' in window)) return;
     if (speaking) {
