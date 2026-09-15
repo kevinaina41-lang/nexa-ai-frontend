@@ -1,4 +1,5 @@
 const API_URL = "https://nexa-ia-pjza.onrender.com";
+const NOTIF_URL = "https://raw.githubusercontent.com/kevinaina41-lang/nexa-ai-frontend/main/notifications.json";
 
 let utilisateur = null;
 let conversationActuelle = null;
@@ -10,6 +11,7 @@ let recognition = null;
 let voiceRecording = false;
 let speaking = false;
 let voiceConversation = [];
+let derniereNotifVue = null;
 
 const MESSAGES_ACCUEIL = {
     "mentor": ["Que puis-je vous enseigner aujourd'hui ?", "Prêt à apprendre ?", "Comment puis-je vous guider ?"],
@@ -18,6 +20,14 @@ const MESSAGES_ACCUEIL = {
     "coach": ["Allez, on avance !", "Prêt à progresser ?", "Quel est votre objectif ?"],
     "default": ["Comment puis-je vous aider ?", "Que puis-je faire pour vous ?", "Posez votre question."]
 };
+
+const CONTACT_INFO = `Voici nos coordonnées :
+
+📱 WhatsApp : 033 69 820 04 / 032 92 802 34
+📧 Email : nexa.ai.mada@gmail.com
+🌐 Site : https://nexa-ai-frontend-steel.vercel.app
+
+N'hésitez pas à nous contacter pour toute question !`;
 
 window.addEventListener('DOMContentLoaded', () => {
     const user = localStorage.getItem('nexa_user');
@@ -62,13 +72,81 @@ window.addEventListener('DOMContentLoaded', () => {
     if (langueSelect) langueSelect.value = langue;
     traduireInterface(langue);
 
+    // ============ ANIMATION BIENVENUE (première connexion) ============
+    const premiereVisite = localStorage.getItem(`nexa_premiere_visite_${utilisateur.email}`);
+    if (!premiereVisite) {
+        afficherAnimationBienvenue();
+        localStorage.setItem(`nexa_premiere_visite_${utilisateur.email}`, 'true');
+    }
+
     chargerConversations();
     chargerStats();
     mettreAJourMessageAccueil();
     initVoiceRecognition();
     initPWA();
+    verifierNotifications();
+    setInterval(verifierNotifications, 5 * 60 * 1000); // Toutes les 5 minutes
     lucide.createIcons();
 });
+
+// ============ ANIMATION DE BIENVENUE ============
+function afficherAnimationBienvenue() {
+    const anim = document.getElementById('welcome-animation');
+    const nameEl = document.getElementById('welcome-anim-name');
+    if (!anim) return;
+    
+    if (nameEl) nameEl.innerText = utilisateur.nom;
+    anim.classList.add('show');
+    
+    setTimeout(() => {
+        anim.classList.add('hide');
+        setTimeout(() => {
+            anim.classList.remove('show', 'hide');
+        }, 500);
+    }, 3000); // 3 secondes
+}
+
+// ============ NOTIFICATIONS DIFFUSÉES ============
+async function verifierNotifications() {
+    try {
+        const response = await fetch(NOTIF_URL + '?t=' + Date.now());
+        if (!response.ok) return;
+        const data = await response.json();
+        
+        if (!data.actif || !data.message) return;
+        if (derniereNotifVue === data.message) return;
+        
+        // Afficher la notification
+        afficherNotificationDiffusee(data.message, data.date);
+        derniereNotifVue = data.message;
+        
+        // Notification navigateur
+        envoyerNotification('Nexa AI', data.message);
+        
+    } catch (e) {
+        console.log('Erreur notif:', e);
+    }
+}
+
+function afficherNotificationDiffusee(message, date) {
+    const notif = document.getElementById('broadcast-notification');
+    const msgEl = document.getElementById('broadcast-message');
+    if (!notif || !msgEl) return;
+    
+    msgEl.innerText = message;
+    notif.classList.add('show');
+    lucide.createIcons();
+    
+    // Auto-fermer après 10 secondes
+    setTimeout(() => {
+        fermerNotificationDiffusee();
+    }, 10000);
+}
+
+function fermerNotificationDiffusee() {
+    const notif = document.getElementById('broadcast-notification');
+    if (notif) notif.classList.remove('show');
+}
 
 // ============ VOIX ============
 function initVoiceRecognition() {
@@ -98,7 +176,6 @@ function initVoiceRecognition() {
         if (mic) mic.classList.remove('recording');
         if (orb) orb.classList.remove('listening');
         
-        // Envoyer automatiquement le message
         const transcript = document.getElementById('voice-transcript');
         if (transcript && transcript.innerText.trim()) {
             envoyerMessageVocal(transcript.innerText.trim());
@@ -426,6 +503,11 @@ function envoyerNotification(titre, corps) {
     }
 }
 
+// ============ CONTACT ============
+function ouvrirContact() {
+    ouvrirModal('modal-contact');
+}
+
 // ============ SIDEBAR ============
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
@@ -591,6 +673,12 @@ function creerConversation(premierMessage) {
 // ============ DÉTECTION ============
 function detecterTypeDemande(message) {
     const msg = message.toLowerCase();
+    
+    // Contact
+    if (msg.includes("contact") || msg.includes("téléphone") || msg.includes("telephone") || msg.includes("email") || msg.includes("whatsapp") || msg.includes("numéro") || msg.includes("numero") || msg.includes("joindre") || msg.includes("appeler")) {
+        return { type: "contact" };
+    }
+    
     if (msg.includes("document word") || msg.includes("fichier word") || msg.includes("génère un word") || msg.includes("crée un word") || msg.includes("word sur") || msg.includes(".docx")) {
         let sujet = message.replace(/.*(?:word|document word|fichier word)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "word", sujet: sujet || "document" };
@@ -646,6 +734,16 @@ async function envoyerMessage() {
 
     try {
         const demande = detecterTypeDemande(message);
+        
+        // Contact → réponse directe
+        if (demande.type === "contact") {
+            supprimerLoading(loadingId);
+            afficherMessage(CONTACT_INFO, 'bot', true, true);
+            conversationActuelle.messages.push({ texte: CONTACT_INFO, type: 'bot', date: new Date().toISOString(), markdown: true });
+            sauvegarderConversations();
+            input.disabled = false; input.focus(); return;
+        }
+        
         if (["word", "excel", "pptx", "pdf"].includes(demande.type)) {
             supprimerLoading(loadingId);
             await telechargerDocument(demande.type, demande.sujet);
@@ -1033,12 +1131,12 @@ function changerLangue() {
 
 function traduireInterface(langue) {
     const t = {
-        fr: { nouveauChat: "Nouveau chat", rechercher: "Rechercher...", recents: "Récents", poser: "Poser une question...", parametres: "Paramètres", stats: "Statistiques", profil: "Modifier le profil", personnaliser: "Personnaliser Nexa AI", aide: "Aide", deconnexion: "Déconnexion" },
-        en: { nouveauChat: "New chat", rechercher: "Search...", recents: "Recent", poser: "Ask a question...", parametres: "Settings", stats: "Statistics", profil: "Edit profile", personnaliser: "Customize Nexa AI", aide: "Help", deconnexion: "Logout" },
-        mg: { nouveauChat: "Resaka vaovao", rechercher: "Hikaroka...", recents: "Vao haingana", poser: "Mametraha fanontaniana...", parametres: "Kirakira", stats: "Statistika", profil: "Hanova mombamomba", personnaliser: "Hanamboatra an'i Nexa AI", aide: "Fanampiana", deconnexion: "Hiala" },
-        es: { nouveauChat: "Nuevo chat", rechercher: "Buscar...", recents: "Recientes", poser: "Haz una pregunta...", parametres: "Ajustes", stats: "Estadísticas", profil: "Editar perfil", personnaliser: "Personalizar Nexa AI", aide: "Ayuda", deconnexion: "Cerrar sesión" },
-        zh: { nouveauChat: "新聊天", rechercher: "搜索...", recents: "最近", poser: "提问...", parametres: "设置", stats: "统计", profil: "编辑个人资料", personnaliser: "自定义 Nexa AI", aide: "帮助", deconnexion: "退出" }
-    }[langue] || { nouveauChat: "Nouveau chat", rechercher: "Rechercher...", recents: "Récents", poser: "Poser une question...", parametres: "Paramètres", stats: "Statistiques", profil: "Modifier le profil", personnaliser: "Personnaliser Nexa AI", aide: "Aide", deconnexion: "Déconnexion" };
+        fr: { nouveauChat: "Nouveau chat", rechercher: "Rechercher...", recents: "Récents", poser: "Poser une question...", parametres: "Paramètres", stats: "Statistiques", profil: "Modifier le profil", personnaliser: "Personnaliser Nexa AI", aide: "Aide", deconnexion: "Déconnexion", contact: "Contact" },
+        en: { nouveauChat: "New chat", rechercher: "Search...", recents: "Recent", poser: "Ask a question...", parametres: "Settings", stats: "Statistics", profil: "Edit profile", personnaliser: "Customize Nexa AI", aide: "Help", deconnexion: "Logout", contact: "Contact" },
+        mg: { nouveauChat: "Resaka vaovao", rechercher: "Hikaroka...", recents: "Vao haingana", poser: "Mametraha fanontaniana...", parametres: "Kirakira", stats: "Statistika", profil: "Hanova mombamomba", personnaliser: "Hanamboatra an'i Nexa AI", aide: "Fanampiana", deconnexion: "Hiala", contact: "Fifandraisana" },
+        es: { nouveauChat: "Nuevo chat", rechercher: "Buscar...", recents: "Recientes", poser: "Haz una pregunta...", parametres: "Ajustes", stats: "Estadísticas", profil: "Editar perfil", personnaliser: "Personalizar Nexa AI", aide: "Ayuda", deconnexion: "Cerrar sesión", contact: "Contacto" },
+        zh: { nouveauChat: "新聊天", rechercher: "搜索...", recents: "最近", poser: "提问...", parametres: "设置", stats: "统计", profil: "编辑个人资料", personnaliser: "自定义 Nexa AI", aide: "帮助", deconnexion: "退出", contact: "联系方式" }
+    }[langue] || { nouveauChat: "Nouveau chat", rechercher: "Rechercher...", recents: "Récents", poser: "Poser une question...", parametres: "Paramètres", stats: "Statistiques", profil: "Modifier le profil", personnaliser: "Personnaliser Nexa AI", aide: "Aide", deconnexion: "Déconnexion", contact: "Contact" };
 
     const btnNewChat = document.querySelector('.btn-new-chat span:last-child');
     if (btnNewChat) btnNewChat.innerText = t.nouveauChat;
@@ -1055,7 +1153,8 @@ function traduireInterface(langue) {
     if (btns[2]) btns[2].innerHTML = `<i data-lucide="user"></i> ${t.profil}`;
     if (btns[3]) btns[3].innerHTML = `<i data-lucide="sparkles"></i> ${t.personnaliser}`;
     if (btns[4]) btns[4].innerHTML = `<i data-lucide="help-circle"></i> ${t.aide}`;
-    if (btns[6]) btns[6].innerHTML = `<i data-lucide="log-out"></i> ${t.deconnexion}`;
+    if (btns[5]) btns[5].innerHTML = `<i data-lucide="phone"></i> ${t.contact}`;
+    if (btns[7]) btns[7].innerHTML = `<i data-lucide="log-out"></i> ${t.deconnexion}`;
     lucide.createIcons();
 }
 
