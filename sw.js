@@ -1,4 +1,5 @@
-const CACHE_NAME = 'nexa-ai-v' + Date.now();
+// ============ SERVICE WORKER — NE VIDE PAS LE LOCALSTORAGE ============
+const CACHE_NAME = 'nexa-ai-cache-v1';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
@@ -14,8 +15,16 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+// Stratégie : réseau d'abord, cache ensuite
+// NE TOUCHE PAS au localStorage
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
+    
+    // Ne pas mettre en cache les appels API
+    if (event.request.url.includes('onrender.com')) return;
+    if (event.request.url.includes('groq.com')) return;
+    if (event.request.url.includes('pollinations.ai')) return;
+    
     event.respondWith(
         fetch(event.request)
             .then((response) => {
