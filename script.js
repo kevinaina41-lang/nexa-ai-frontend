@@ -6,6 +6,9 @@ let conversations = [];
 let persona = "";
 let rechercheActive = false;
 let stats = null;
+let voiceActive = false;
+let recognition = null;
+let speaking = false;
 
 const MESSAGES_ACCUEIL = {
     "mentor": ["Que puis-je vous enseigner aujourd'hui ?", "Prêt à apprendre ?", "Comment puis-je vous guider ?"],
@@ -30,7 +33,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if (avatarImg) avatarImg.src = utilisateur.avatar;
     }
 
-    // Mode sombre
     if (localStorage.getItem('nexa_dark') === 'false') {
         document.body.classList.add('light');
     }
@@ -40,7 +42,11 @@ window.addEventListener('DOMContentLoaded', () => {
         else darkToggle.classList.remove('active');
     }
 
-    // Accentuation
+    const notifToggle = document.getElementById('toggle-notif');
+    if (notifToggle && Notification.permission === 'granted') {
+        notifToggle.classList.add('active');
+    }
+
     const accent = localStorage.getItem('nexa_accent') || '#667eea';
     document.documentElement.style.setProperty('--accent', accent);
     const preview = document.getElementById('color-preview');
@@ -58,8 +64,138 @@ window.addEventListener('DOMContentLoaded', () => {
     chargerConversations();
     chargerStats();
     mettreAJourMessageAccueil();
+    initVoice();
+    initPWA();
     lucide.createIcons();
 });
+
+// ============ VOIX ============
+function initVoice() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        console.log('Speech Recognition non supporté');
+        return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'fr-FR';
+
+    recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+        }
+        const input = document.getElementById('message');
+        if (input) input.value = transcript;
+    };
+
+    recognition.onend = () => {
+        voiceActive = false;
+        const btn = document.getElementById('btn-voice');
+        if (btn) btn.classList.remove('active');
+    };
+
+    recognition.onerror = () => {
+        voiceActive = false;
+        const btn = document.getElementById('btn-voice');
+        if (btn) btn.classList.remove('active');
+    };
+}
+
+function toggleVoice() {
+    if (!recognition) {
+        alert('La reconnaissance vocale n\'est pas supportée par votre navigateur.');
+        return;
+    }
+    const btn = document.getElementById('btn-voice');
+    if (voiceActive) {
+        recognition.stop();
+        voiceActive = false;
+        if (btn) btn.classList.remove('active');
+    } else {
+        recognition.start();
+        voiceActive = true;
+        if (btn) btn.classList.add('active');
+    }
+}
+
+function lireTexte(texte, btnElement) {
+    if (!('speechSynthesis' in window)) return;
+    if (speaking) {
+        window.speechSynthesis.cancel();
+        speaking = false;
+        document.querySelectorAll('.btn-speak').forEach(b => b.classList.remove('speaking'));
+        return;
+    }
+    const textePropre = texte.replace(/[#*`>|]/g, '').replace(/\n/g, '. ');
+    const utterance = new SpeechSynthesisUtterance(textePropre);
+    utterance.lang = 'fr-FR';
+    utterance.rate = 1;
+    utterance.onend = () => {
+        speaking = false;
+        if (btnElement) btnElement.classList.remove('speaking');
+    };
+    speaking = true;
+    if (btnElement) btnElement.classList.add('speaking');
+    window.speechSynthesis.speak(utterance);
+}
+
+// ============ PWA ============
+function initPWA() {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW:', err));
+        });
+    }
+
+    const installBanner = document.getElementById('install-banner');
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        window.deferredPrompt = e;
+        if (localStorage.getItem('nexa_install_dismissed') !== 'true') {
+            if (installBanner) installBanner.classList.add('show');
+        }
+    });
+
+    window.addEventListener('appinstalled', () => {
+        if (installBanner) installBanner.classList.remove('show');
+        localStorage.setItem('nexa_install_dismissed', 'true');
+    });
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isIOS && !isStandalone && localStorage.getItem('nexa_install_dismissed') !== 'true') {
+        setTimeout(() => {
+            if (installBanner) installBanner.classList.add('show');
+        }, 3000);
+    }
+}
+
+function installerPWA() {
+    const prompt = window.deferredPrompt;
+    const installBanner = document.getElementById('install-banner');
+    if (!prompt) {
+        alert('Pour installer : Menu du navigateur → "Ajouter à l\'écran d\'accueil"');
+        return;
+    }
+    prompt.prompt();
+    prompt.userChoice.then((choice) => {
+        if (choice.outcome === 'accepted') {
+            if (installBanner) installBanner.classList.remove('show');
+        }
+        window.deferredPrompt = null;
+    });
+}
+
+function fermerBanniere() {
+    const installBanner = document.getElementById('install-banner');
+    if (installBanner) installBanner.classList.remove('show');
+    localStorage.setItem('nexa_install_dismissed', 'true');
+}
 
 // ============ STATS ============
 function chargerStats() {
@@ -74,19 +210,13 @@ function sauvegarderStats() {
 
 function enregistrerScoreQuiz(sujet, score, total) {
     if (!stats) stats = { quiz: [], messages: 0 };
-    stats.quiz.push({
-        sujet: sujet,
-        score: score,
-        total: total,
-        date: new Date().toISOString()
-    });
+    stats.quiz.push({ sujet, score, total, date: new Date().toISOString() });
     sauvegarderStats();
 }
 
 function ouvrirStats() {
     const container = document.getElementById('stats-content');
     if (!container) return;
-
     const totalConv = conversations.length;
     const totalMsg = conversations.reduce((sum, c) => sum + c.messages.length, 0);
     const totalQuiz = stats.quiz.length;
@@ -96,58 +226,21 @@ function ouvrirStats() {
 
     let html = `
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">${totalConv}</div>
-                <div class="stat-label">Conversations</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">${totalMsg}</div>
-                <div class="stat-label">Messages</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">${totalQuiz}</div>
-                <div class="stat-label">Quiz passés</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">${moyenne}</div>
-                <div class="stat-label">Moyenne /20</div>
-            </div>
+            <div class="stat-card"><div class="stat-value">${totalConv}</div><div class="stat-label">Conversations</div></div>
+            <div class="stat-card"><div class="stat-value">${totalMsg}</div><div class="stat-label">Messages</div></div>
+            <div class="stat-card"><div class="stat-value">${totalQuiz}</div><div class="stat-label">Quiz passés</div></div>
+            <div class="stat-card"><div class="stat-value">${moyenne}</div><div class="stat-label">Moyenne /20</div></div>
         </div>
     `;
 
     if (totalQuiz > 0) {
-        html += `
-            <div class="stats-chart">
-                <div class="stats-section-title">Évolution des scores</div>
-                <canvas id="chart-scores" height="150"></canvas>
-            </div>
-            <div style="margin-top:20px">
-                <div class="stats-section-title">Derniers quiz</div>
-        `;
+        html += `<div class="stats-chart"><div class="stats-section-title">Évolution des scores</div><canvas id="chart-scores" height="150"></canvas></div>`;
+        html += `<div style="margin-top:20px"><div class="stats-section-title">Derniers quiz</div>`;
         stats.quiz.slice(-5).reverse().forEach(q => {
             const note = (q.score / q.total * 20).toFixed(1);
-            html += `<div class="recommandation">
-                <span>${q.sujet}</span>
-                <span class="rec-score">${note}/20</span>
-            </div>`;
+            html += `<div class="recommandation"><span>${q.sujet}</span><span class="rec-score">${note}/20</span></div>`;
         });
         html += `</div>`;
-
-        const sujetsFaibles = {};
-        stats.quiz.forEach(q => {
-            const note = q.score / q.total;
-            if (note < 0.6) {
-                sujetsFaibles[q.sujet] = (sujetsFaibles[q.sujet] || 0) + 1;
-            }
-        });
-
-        if (Object.keys(sujetsFaibles).length > 0) {
-            html += `<div style="margin-top:20px"><div class="stats-section-title">Recommandations</div>`;
-            Object.keys(sujetsFaibles).forEach(sujet => {
-                html += `<div class="recommandation">Révisez : <strong>${sujet}</strong></div>`;
-            });
-            html += `</div>`;
-        }
     } else {
         html += `<p style="text-align:center; color:var(--text-dim); margin-top:20px; font-size:14px">Passez votre premier quiz pour voir vos statistiques.</p>`;
     }
@@ -169,28 +262,17 @@ function ouvrirStats() {
                             data: stats.quiz.map(q => parseFloat((q.score / q.total * 20).toFixed(1))),
                             borderColor: accentColor,
                             backgroundColor: accentColor + '20',
-                            tension: 0.4,
-                            fill: true,
+                            tension: 0.4, fill: true,
                             pointBackgroundColor: accentColor,
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2,
-                            pointRadius: 4
+                            pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 4
                         }]
                     },
                     options: {
                         responsive: true,
                         plugins: { legend: { display: false } },
                         scales: {
-                            y: {
-                                beginAtZero: true,
-                                max: 20,
-                                ticks: { color: '#888', font: { size: 11 } },
-                                grid: { color: 'rgba(255,255,255,0.05)' }
-                            },
-                            x: {
-                                ticks: { color: '#888', font: { size: 11 } },
-                                grid: { display: false }
-                            }
+                            y: { beginAtZero: true, max: 20, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                            x: { ticks: { color: '#888' }, grid: { display: false } }
                         }
                     }
                 });
@@ -202,30 +284,48 @@ function ouvrirStats() {
 // ============ MARKDOWN ============
 function rendreMarkdown(texte) {
     if (typeof marked !== 'undefined') {
-        try {
-            return marked.parse(texte);
-        } catch (e) {
-            return texte.replace(/\n/g, '<br>');
-        }
+        try { return marked.parse(texte); }
+        catch (e) { return texte.replace(/\n/g, '<br>'); }
     }
     return texte.replace(/\n/g, '<br>');
 }
 
-// ============ SIDEBAR (CORRIGÉE) ============
+// ============ NOTIFICATIONS ============
+function toggleNotifications() {
+    if (!('Notification' in window)) { alert('Notifications non supportées'); return; }
+    if (Notification.permission === 'granted') {
+        localStorage.setItem('nexa_notif', 'false');
+        const t = document.getElementById('toggle-notif');
+        if (t) t.classList.remove('active');
+    } else {
+        Notification.requestPermission().then(perm => {
+            if (perm === 'granted') {
+                localStorage.setItem('nexa_notif', 'true');
+                const t = document.getElementById('toggle-notif');
+                if (t) t.classList.add('active');
+                envoyerNotification('Nexa AI', 'Notifications activées !');
+            }
+        });
+    }
+}
+
+function envoyerNotification(titre, corps) {
+    if (localStorage.getItem('nexa_notif') === 'false') return;
+    if (Notification.permission === 'granted' && document.hidden) {
+        new Notification(titre, { body: corps, icon: 'logo.png' });
+    }
+}
+
+// ============ SIDEBAR ============
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('overlay');
     if (!sidebar) return;
-    
     sidebar.classList.toggle('hidden');
-    
     const isMobile = window.innerWidth <= 768;
     if (overlay) {
-        if (isMobile && !sidebar.classList.contains('hidden')) {
-            overlay.classList.add('show');
-        } else {
-            overlay.classList.remove('show');
-        }
+        if (isMobile && !sidebar.classList.contains('hidden')) overlay.classList.add('show');
+        else overlay.classList.remove('show');
     }
 }
 
@@ -238,6 +338,43 @@ document.addEventListener('click', () => {
     const menu = document.getElementById('menu-profil');
     if (menu) menu.classList.remove('show');
 });
+
+// ============ LOGO FLOTTANT ============
+function toggleFloatChat() {
+    const chat = document.getElementById('nexa-float-chat');
+    if (chat) chat.classList.toggle('show');
+    lucide.createIcons();
+}
+
+async function envoyerFloatMessage() {
+    const input = document.getElementById('nexa-float-message');
+    const body = document.getElementById('nexa-float-body');
+    if (!input || !body) return;
+    const message = input.value.trim();
+    if (!message) return;
+
+    body.innerHTML += `<p class="nexa-float-msg user">${message}</p>`;
+    input.value = '';
+    const loadingId = 'float-load-' + Date.now();
+    body.innerHTML += `<p class="nexa-float-msg bot" id="${loadingId}">...</p>`;
+    body.scrollTop = body.scrollHeight;
+
+    try {
+        const response = await fetch(`${API_URL}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, historique: [], persona })
+        });
+        const data = await response.json();
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.innerText = data.reply;
+        body.scrollTop = body.scrollHeight;
+        envoyerNotification('Nexa AI', 'Réponse prête !');
+    } catch (e) {
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.innerText = "Erreur de connexion.";
+    }
+}
 
 // ============ ACCUEIL ============
 function mettreAJourMessageAccueil() {
@@ -281,25 +418,20 @@ function afficherHistorique() {
         div.className = 'history-item';
         if (conv.epingle) div.classList.add('epingle');
         if (conversationActuelle && conv.id === conversationActuelle.id) div.classList.add('active');
-
         const texte = document.createElement('span');
         texte.className = 'history-text';
         texte.innerText = conv.titre || 'Nouvelle conversation';
         div.appendChild(texte);
-
         const actions = document.createElement('div');
         actions.className = 'history-actions';
-
         const btnEpingler = document.createElement('button');
         btnEpingler.innerHTML = conv.epingle ? '<i data-lucide="pin-off"></i>' : '<i data-lucide="pin"></i>';
         btnEpingler.onclick = (e) => { e.stopPropagation(); toggleEpingler(conv.id); };
         actions.appendChild(btnEpingler);
-
         const btnSuppr = document.createElement('button');
         btnSuppr.innerHTML = '<i data-lucide="trash-2"></i>';
         btnSuppr.onclick = (e) => { e.stopPropagation(); supprimerConversation(conv.id); };
         actions.appendChild(btnSuppr);
-
         div.appendChild(actions);
         div.onclick = () => ouvrirConversation(conv.id);
         container.appendChild(div);
@@ -309,22 +441,15 @@ function afficherHistorique() {
 
 function toggleEpingler(id) {
     const conv = conversations.find(c => c.id === id);
-    if (conv) {
-        conv.epingle = !conv.epingle;
-        sauvegarderConversations();
-        afficherHistorique();
-    }
+    if (conv) { conv.epingle = !conv.epingle; sauvegarderConversations(); afficherHistorique(); }
 }
 
 function supprimerConversation(id) {
     if (!confirm("Supprimer cette conversation ?")) return;
     conversations = conversations.filter(c => c.id !== id);
     sauvegarderConversations();
-    if (conversationActuelle && conversationActuelle.id === id) {
-        nouveauChat();
-    } else {
-        afficherHistorique();
-    }
+    if (conversationActuelle && conversationActuelle.id === id) nouveauChat();
+    else afficherHistorique();
 }
 
 function nouveauChat() {
@@ -393,53 +518,41 @@ function creerConversation(premierMessage) {
 // ============ DÉTECTION ============
 function detecterTypeDemande(message) {
     const msg = message.toLowerCase();
-
     if (msg.includes("document word") || msg.includes("fichier word") || msg.includes("génère un word") || msg.includes("crée un word") || msg.includes("word sur") || msg.includes(".docx")) {
         let sujet = message.replace(/.*(?:word|document word|fichier word)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "word", sujet: sujet || "document" };
     }
-
     if (msg.includes("tableau excel") || msg.includes("fichier excel") || msg.includes("génère un excel") || msg.includes("excel sur") || msg.includes(".xlsx")) {
         let sujet = message.replace(/.*(?:excel|tableau excel|fichier excel)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "excel", sujet: sujet || "données" };
     }
-
     if (msg.includes("présentation") || msg.includes("powerpoint") || msg.includes("slides") || msg.includes(".pptx")) {
         let sujet = message.replace(/.*(?:présentation|powerpoint|slides)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "pptx", sujet: sujet || "présentation" };
     }
-
     if (msg.includes("pdf") || msg.includes(".pdf")) {
         let sujet = message.replace(/.*(?:pdf)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "pdf", sujet: sujet || "document" };
     }
-
     if (msg.includes("génère une image") || msg.includes("crée une image") || msg.includes("dessine") || msg.includes("image de")) {
         let sujet = message.replace(/.*(?:image|dessine)[\s:]*/i, '').replace(/de/i, '').trim();
         return { type: "image", sujet: sujet || "image" };
     }
-
     if (msg.includes("quiz") || msg.includes("qcm")) {
         let sujet = message.replace(/.*(?:quiz|qcm)[\s:]*/i, '').replace(/sur/i, '').trim();
         const nbMatch = msg.match(/(\d+)\s*(questions?|qcm)/);
         const nb = nbMatch ? parseInt(nbMatch[1]) : 5;
         return { type: "quiz", sujet: sujet || "culture générale", nb };
     }
-
     if (msg.includes("fiche") || msg.includes("révision") || msg.includes("résumé")) {
         let sujet = message.replace(/.*(?:fiche|révision|résumé)[\s:]*/i, '').replace(/sur/i, '').trim();
         return { type: "fiche", sujet: sujet || "sujet" };
     }
-
-    if (msg.includes("cv") || msg.includes("curriculum")) {
-        return { type: "cv" };
-    }
-
+    if (msg.includes("cv") || msg.includes("curriculum")) return { type: "cv" };
     if (msg.includes("corrige") || msg.includes("correction")) {
         let texte = message.replace(/.*(?:corrige|correction)[\s:]*/i, '').trim();
         return { type: "correction", texte: texte || message };
     }
-
     return { type: "chat" };
 }
 
@@ -448,67 +561,40 @@ async function envoyerMessage() {
     const input = document.getElementById('message');
     const message = input.value.trim();
     if (!message) return;
-
     const chat = document.getElementById('chat');
     if (chat.querySelector('.welcome')) chat.innerHTML = '';
-
     if (!conversationActuelle) creerConversation(message);
-
     conversationActuelle.messages.push({ texte: message, type: 'user', date: new Date().toISOString() });
     afficherMessage(message, 'user', true);
     sauvegarderConversations();
-
     input.value = '';
     input.disabled = true;
-
     const loadingId = afficherLoading();
 
     try {
         const demande = detecterTypeDemande(message);
-
         if (["word", "excel", "pptx", "pdf"].includes(demande.type)) {
             supprimerLoading(loadingId);
             await telechargerDocument(demande.type, demande.sujet);
-            input.disabled = false;
-            input.focus();
-            return;
+            input.disabled = false; input.focus(); return;
         }
-
         if (demande.type === "image") {
             supprimerLoading(loadingId);
             await genererImage(demande.sujet);
-            input.disabled = false;
-            input.focus();
-            return;
+            input.disabled = false; input.focus(); return;
         }
 
         let endpoint = "/chat";
-        let body = {
-            message: message,
-            historique: conversationActuelle.messages.slice(-20),
-            persona: persona,
-            recherche: rechercheActive
-        };
-
+        let body = { message, historique: conversationActuelle.messages.slice(-20), persona, recherche: rechercheActive };
         if (rechercheActive) {
             rechercheActive = false;
             const btn = document.getElementById('btn-recherche');
             if (btn) btn.classList.remove('active');
         }
-
-        if (demande.type === "quiz") {
-            endpoint = "/quiz";
-            body = { sujet: demande.sujet, nb: demande.nb || 5 };
-        } else if (demande.type === "fiche") {
-            endpoint = "/fiche";
-            body = { sujet: demande.sujet };
-        } else if (demande.type === "cv") {
-            endpoint = "/cv";
-            body = { infos: message };
-        } else if (demande.type === "correction") {
-            endpoint = "/corriger";
-            body = { texte: demande.texte };
-        }
+        if (demande.type === "quiz") { endpoint = "/quiz"; body = { sujet: demande.sujet, nb: demande.nb || 5 }; }
+        else if (demande.type === "fiche") { endpoint = "/fiche"; body = { sujet: demande.sujet }; }
+        else if (demande.type === "cv") { endpoint = "/cv"; body = { infos: message }; }
+        else if (demande.type === "correction") { endpoint = "/corriger"; body = { texte: demande.texte }; }
 
         const response = await fetch(`${API_URL}${endpoint}`, {
             method: 'POST',
@@ -516,32 +602,21 @@ async function envoyerMessage() {
             body: JSON.stringify(body)
         });
         const data = await response.json();
-
         supprimerLoading(loadingId);
 
         if (demande.type === "quiz") {
             afficherQuiz(data.quiz || data.reply, demande.sujet);
-            conversationActuelle.messages.push({
-                texte: "Quiz généré",
-                type: 'bot',
-                date: new Date().toISOString()
-            });
+            conversationActuelle.messages.push({ texte: "Quiz généré", type: 'bot', date: new Date().toISOString() });
         } else {
             afficherMessage(data.reply, 'bot', true, true);
-            conversationActuelle.messages.push({
-                texte: data.reply,
-                type: 'bot',
-                date: new Date().toISOString(),
-                markdown: true
-            });
+            conversationActuelle.messages.push({ texte: data.reply, type: 'bot', date: new Date().toISOString(), markdown: true });
         }
         sauvegarderConversations();
-
+        envoyerNotification('Nexa AI', 'Réponse prête !');
     } catch (error) {
         supprimerLoading(loadingId);
         afficherMessage("Erreur de connexion.", 'bot', true);
     }
-
     input.disabled = false;
     input.focus();
 }
@@ -556,9 +631,7 @@ function afficherLoading() {
     div.innerHTML = `
         <div class="avatar"><img src="logo.png" alt="Nexa"></div>
         <div class="content">
-            <div class="loading-dots">
-                <span></span><span></span><span></span>
-            </div>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
         </div>
     `;
     chat.appendChild(div);
@@ -581,22 +654,58 @@ function afficherMessage(texte, type, scroll = true, markdown = false) {
 
     let avatar;
     if (type === 'user') {
-        avatar = utilisateur.avatar
-            ? `<img src="${utilisateur.avatar}" alt="">`
-            : utilisateur.nom[0].toUpperCase();
+        avatar = utilisateur.avatar ? `<img src="${utilisateur.avatar}" alt="">` : utilisateur.nom[0].toUpperCase();
     } else {
         avatar = `<img src="logo.png" alt="Nexa">`;
     }
 
     const contenu = (markdown && type === 'bot' && texte) ? rendreMarkdown(texte) : texte;
+    let actionsHtml = '';
+    if (type === 'bot' && texte && texte !== '...') {
+        const texteEchappe = texte.replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/\\/g, '\\\\');
+        actionsHtml = `
+            <div class="msg-actions">
+                <button class="btn-copy" onclick="copierTexte(\`${texteEchappe}\`, this)">
+                    <i data-lucide="copy"></i> Copier
+                </button>
+                <button class="btn-speak" onclick="lireTexte(\`${texteEchappe}\`, this)">
+                    <i data-lucide="volume-2"></i> Écouter
+                </button>
+            </div>
+        `;
+    }
 
     div.innerHTML = `
         <div class="avatar">${avatar}</div>
-        <div class="content">${contenu}</div>
+        <div class="content">${contenu}${actionsHtml}</div>
     `;
     chat.appendChild(div);
     if (scroll) chat.scrollTop = chat.scrollHeight;
+    lucide.createIcons();
     return id;
+}
+
+// ============ COPIER ============
+function copierTexte(texte, btn) {
+    navigator.clipboard.writeText(texte).then(() => {
+        if (btn) {
+            btn.classList.add('copied');
+            btn.innerHTML = '<i data-lucide="check"></i> Copié !';
+            lucide.createIcons();
+            setTimeout(() => {
+                btn.classList.remove('copied');
+                btn.innerHTML = '<i data-lucide="copy"></i> Copier';
+                lucide.createIcons();
+            }, 2000);
+        }
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = texte;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    });
 }
 
 // ============ QUIZ ============
@@ -606,7 +715,6 @@ function afficherQuiz(contenu, sujet = "Quiz") {
     const id = 'quiz-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
     div.id = id;
     div.className = 'message bot';
-
     const questions = parserQuiz(contenu);
     window[`quiz_data_${id}`] = { questions, sujet };
 
@@ -616,13 +724,8 @@ function afficherQuiz(contenu, sujet = "Quiz") {
             <div class="quiz-container">
                 <div class="quiz-title">Quiz interactif</div>
     `;
-
     questions.forEach((q, i) => {
-        html += `
-            <div class="quiz-question" data-question="${i}">
-                <div class="quiz-question-title">${i + 1}. ${q.question}</div>
-        `;
-
+        html += `<div class="quiz-question" data-question="${i}"><div class="quiz-question-title">${i + 1}. ${q.question}</div>`;
         if (q.options && q.options.length > 0) {
             q.options.forEach((opt, j) => {
                 html += `
@@ -637,7 +740,6 @@ function afficherQuiz(contenu, sujet = "Quiz") {
         }
         html += `</div>`;
     });
-
     html += `
                 <div class="quiz-actions">
                     <button class="btn-quiz-validate" onclick="validerQuiz('${id}')">Valider mes réponses</button>
@@ -646,10 +748,10 @@ function afficherQuiz(contenu, sujet = "Quiz") {
             </div>
         </div>
     `;
-
     div.innerHTML = html;
     chat.appendChild(div);
     chat.scrollTop = chat.scrollHeight;
+    lucide.createIcons();
     return id;
 }
 
@@ -657,12 +759,10 @@ function parserQuiz(texte) {
     const questions = [];
     const lignes = texte.split('\n').filter(l => l.trim());
     let questionActuelle = null;
-
     lignes.forEach(ligne => {
         ligne = ligne.trim();
         const matchQuestion = ligne.match(/^(?:\*\*)?(?:Question\s*)?(\d+)\s*[:.)]\s*(.+?)(?:\*\*)?$/i);
         const matchQuestionSimple = ligne.match(/^(\d+)\.\s*(.+)$/);
-
         if (matchQuestion && !ligne.match(/^[A-D]\)/)) {
             if (questionActuelle) questions.push(questionActuelle);
             questionActuelle = { question: matchQuestion[2].replace(/\*\*/g, ''), options: [], reponse: null };
@@ -673,19 +773,11 @@ function parserQuiz(texte) {
             questionActuelle = { question: matchQuestionSimple[2].replace(/\*\*/g, ''), options: [], reponse: null };
             return;
         }
-
         const matchOption = ligne.match(/^([A-D])\)\s*(.+)$/);
-        if (matchOption && questionActuelle) {
-            questionActuelle.options.push(`${matchOption[1]}) ${matchOption[2]}`);
-            return;
-        }
-
+        if (matchOption && questionActuelle) { questionActuelle.options.push(`${matchOption[1]}) ${matchOption[2]}`); return; }
         const matchReponse = ligne.match(/(?:Réponse correcte|Answer|Réponse)\s*:\s*([A-D])/i);
-        if (matchReponse && questionActuelle) {
-            questionActuelle.reponse = matchReponse[1].charCodeAt(0) - 65;
-        }
+        if (matchReponse && questionActuelle) { questionActuelle.reponse = matchReponse[1].charCodeAt(0) - 65; }
     });
-
     if (questionActuelle) questions.push(questionActuelle);
     return questions;
 }
@@ -706,18 +798,12 @@ function validerQuiz(quizId) {
     const { questions, sujet } = data;
     let bonnes = 0;
     let total = questions.length;
-
     questions.forEach((q, i) => {
         const questionDiv = quizDiv.querySelector(`[data-question="${i}"]`);
-
         if (q.options && q.options.length > 0) {
             const selected = questionDiv.querySelector('.quiz-option.selected');
             const options = questionDiv.querySelectorAll('.quiz-option');
-
-            options.forEach((opt, j) => {
-                if (j === q.reponse) opt.classList.add('correct');
-            });
-
+            options.forEach((opt, j) => { if (j === q.reponse) opt.classList.add('correct'); });
             if (selected) {
                 const selectedIndex = Array.from(options).indexOf(selected);
                 if (selectedIndex === q.reponse) bonnes++;
@@ -725,19 +811,12 @@ function validerQuiz(quizId) {
             }
         }
     });
-
     const feedback = document.getElementById(`feedback-${quizId}`);
     if (feedback) {
         const note = total > 0 ? Math.round((bonnes / total) * 20) : 0;
-        feedback.innerHTML = `
-            <div class="quiz-feedback success">
-                Score : ${bonnes}/${total} — Note : ${note}/20
-            </div>
-        `;
+        feedback.innerHTML = `<div class="quiz-feedback success">Score : ${bonnes}/${total} — Note : ${note}/20</div>`;
     }
-
     enregistrerScoreQuiz(sujet, bonnes, total);
-
     quizDiv.querySelectorAll('.quiz-option').forEach(o => o.style.pointerEvents = 'none');
     const btn = quizDiv.querySelector('.btn-quiz-validate');
     if (btn) btn.disabled = true;
@@ -747,18 +826,16 @@ function rechercherConversations() {
     const recherche = document.getElementById('search').value.toLowerCase();
     const container = document.getElementById('historique');
     container.innerHTML = '';
-    conversations
-        .filter(conv => conv.titre.toLowerCase().includes(recherche))
-        .forEach(conv => {
-            const div = document.createElement('div');
-            div.className = 'history-item';
-            const span = document.createElement('span');
-            span.className = 'history-text';
-            span.innerText = conv.titre;
-            div.appendChild(span);
-            div.onclick = () => ouvrirConversation(conv.id);
-            container.appendChild(div);
-        });
+    conversations.filter(conv => conv.titre.toLowerCase().includes(recherche)).forEach(conv => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        const span = document.createElement('span');
+        span.className = 'history-text';
+        span.innerText = conv.titre;
+        div.appendChild(span);
+        div.onclick = () => ouvrirConversation(conv.id);
+        container.appendChild(div);
+    });
 }
 
 // ============ MODALES ============
@@ -818,7 +895,6 @@ function sauvegarderProfil() {
     const nameEl = document.getElementById('edit-name');
     const bioEl = document.getElementById('edit-bio');
     const avatarEl = document.getElementById('edit-avatar');
-    
     const nom = nameEl ? nameEl.value.trim() : '';
     const bio = bioEl ? bioEl.value.trim() : '';
     const avatar = avatarEl ? avatarEl.src : '';
@@ -828,6 +904,15 @@ function sauvegarderProfil() {
         utilisateur.bio = bio;
         utilisateur.avatar = avatar;
         localStorage.setItem('nexa_user', JSON.stringify(utilisateur));
+
+        // Mettre à jour aussi dans nexa_users
+        const users = JSON.parse(localStorage.getItem('nexa_users') || '{}');
+        if (users[utilisateur.email]) {
+            users[utilisateur.email].nom = nom;
+            users[utilisateur.email].bio = bio;
+            users[utilisateur.email].avatar = avatar;
+            localStorage.setItem('nexa_users', JSON.stringify(users));
+        }
 
         const userNameEl = document.getElementById('user-name');
         if (userNameEl) userNameEl.innerText = nom;
@@ -858,14 +943,10 @@ function setAccent(couleur, event) {
     const custom = document.getElementById('custom-color');
     if (custom) custom.value = couleur;
     document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
-    if (event && event.target) {
-        event.target.classList.add('selected');
-    }
+    if (event && event.target) event.target.classList.add('selected');
 }
 
-function appliquerCouleurPerso(input) {
-    setAccent(input.value);
-}
+function appliquerCouleurPerso(input) { setAccent(input.value); }
 
 function togglePalette() {
     const p = document.getElementById('color-palette');
@@ -903,7 +984,6 @@ function traduireInterface(langue) {
     if (btns[3]) btns[3].innerHTML = `<i data-lucide="sparkles"></i> ${t.personnaliser}`;
     if (btns[4]) btns[4].innerHTML = `<i data-lucide="help-circle"></i> ${t.aide}`;
     if (btns[6]) btns[6].innerHTML = `<i data-lucide="log-out"></i> ${t.deconnexion}`;
-
     lucide.createIcons();
 }
 
@@ -918,7 +998,6 @@ function toggleRecherche() {
 async function analyserFichier(event) {
     const file = event.target.files[0];
     if (!file) return;
-
     const chat = document.getElementById('chat');
     if (chat.querySelector('.welcome')) chat.innerHTML = '';
     if (!conversationActuelle) creerConversation("Analyse de " + file.name);
@@ -927,29 +1006,19 @@ async function analyserFichier(event) {
     fileDiv.className = 'message user';
     fileDiv.innerHTML = `
         <div class="avatar">${utilisateur.avatar ? `<img src="${utilisateur.avatar}" alt="">` : utilisateur.nom[0].toUpperCase()}</div>
-        <div class="content">
-            <div class="file-preview"><i data-lucide="file"></i> ${file.name}</div>
-        </div>
+        <div class="content"><div class="file-preview"><i data-lucide="file"></i> ${file.name}</div></div>
     `;
     chat.appendChild(fileDiv);
     lucide.createIcons();
     chat.scrollTop = chat.scrollHeight;
-
     const loadingId = afficherLoading();
-
     try {
         const formData = new FormData();
         formData.append('file', file);
-
-        const response = await fetch(`${API_URL}/analyser`, {
-            method: 'POST',
-            body: formData
-        });
+        const response = await fetch(`${API_URL}/analyser`, { method: 'POST', body: formData });
         const data = await response.json();
-
         supprimerLoading(loadingId);
         afficherMessage(data.reply, 'bot', true, true);
-
         conversationActuelle.messages.push({ texte: file.name, type: 'user', date: new Date().toISOString() });
         conversationActuelle.messages.push({ texte: data.reply, type: 'bot', date: new Date().toISOString(), markdown: true });
         sauvegarderConversations();
@@ -957,7 +1026,6 @@ async function analyserFichier(event) {
         supprimerLoading(loadingId);
         afficherMessage("Erreur d'analyse.", 'bot', true);
     }
-
     event.target.value = '';
 }
 
@@ -965,7 +1033,6 @@ async function analyserFichier(event) {
 async function telechargerDocument(type, sujet) {
     const chat = document.getElementById('chat');
     const loadingId = afficherLoading();
-
     const labels = {
         word: { name: "Document Word", type: "DOCX", icon: "W" },
         excel: { name: "Tableau Excel", type: "XLSX", icon: "X" },
@@ -980,15 +1047,11 @@ async function telechargerDocument(type, sujet) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sujet: sujet })
         });
-
         if (!response.ok) throw new Error("Erreur API");
-
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-
         const ext = type === 'word' ? 'docx' : type === 'excel' ? 'xlsx' : type === 'pptx' ? 'pptx' : 'pdf';
         const filename = `nexa_${type}_${Date.now()}.${ext}`;
-
         supprimerLoading(loadingId);
 
         const div = document.createElement('div');
@@ -1011,7 +1074,6 @@ async function telechargerDocument(type, sujet) {
         chat.appendChild(div);
         chat.scrollTop = chat.scrollHeight;
         lucide.createIcons();
-
     } catch (e) {
         supprimerLoading(loadingId);
         afficherMessage("Erreur de génération.", 'bot', true);
@@ -1022,7 +1084,6 @@ async function telechargerDocument(type, sujet) {
 async function genererImage(prompt) {
     const chat = document.getElementById('chat');
     const loadingId = afficherLoading();
-
     try {
         const response = await fetch(`${API_URL}/image`, {
             method: 'POST',
@@ -1030,9 +1091,7 @@ async function genererImage(prompt) {
             body: JSON.stringify({ prompt: prompt })
         });
         const data = await response.json();
-
         supprimerLoading(loadingId);
-
         const div = document.createElement('div');
         div.className = 'message bot';
         div.innerHTML = `
@@ -1051,7 +1110,6 @@ async function genererImage(prompt) {
         chat.appendChild(div);
         chat.scrollTop = chat.scrollHeight;
         lucide.createIcons();
-
     } catch (e) {
         supprimerLoading(loadingId);
         afficherMessage("Erreur de génération d'image.", 'bot', true);
