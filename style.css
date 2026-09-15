@@ -1461,3 +1461,202 @@ body {
     .stat-card .stat-value { font-size: 20px; }
     .color-palette { grid-template-columns: repeat(5, 1fr); }
 }
+/* ============ ANIMATION DE BIENVENUE ============ */
+.welcome-animation {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: radial-gradient(circle at center, #1a1a2e 0%, #0a0a0a 100%);
+    z-index: 3000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.welcome-animation.show {
+    display: flex;
+    opacity: 1;
+}
+
+.welcome-animation.hide {
+    opacity: 0;
+}
+
+.welcome-anim-logo {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.welcome-anim-logo img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    z-index: 2;
+    animation: welcomeLogoIn 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.welcome-anim-ring {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 2px solid #667eea;
+    animation: welcomeRing 2s ease-out infinite;
+}
+
+@keyframes welcomeRing {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes welcomeLogoIn {
+    0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.welcome-anim-title {
+    font-size: 32px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 2px;
+    animation: welcomeTextIn 0.8s ease 0.3s both;
+}
+
+.welcome-anim-name {
+    font-size: 42px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea, #764ba2, #4facfe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: welcomeTextIn 0.8s ease 0.5s both;
+}
+
+.welcome-anim-sub {
+    font-size: 16px;
+    color: rgba(255,255,255,0.5);
+    animation: welcomeTextIn 0.8s ease 0.7s both;
+}
+
+@keyframes welcomeTextIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============ NOTIFICATION DIFFUSÉE ============ */
+.broadcast-notification {
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    max-width: 500px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: var(--radius);
+    padding: 15px;
+    box-shadow: 0 12px 48px rgba(102, 126, 234, 0.5);
+    z-index: 2500;
+    align-items: center;
+    gap: 12px;
+    animation: broadcastIn 0.5s ease;
+}
+
+.broadcast-notification.show {
+    display: flex;
+}
+
+@keyframes broadcastIn {
+    from { opacity: 0; transform: translateY(-30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.broadcast-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.broadcast-icon svg { width: 20px; height: 20px; color: white; }
+
+.broadcast-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.broadcast-content strong {
+    color: white;
+    font-size: 13px;
+    margin-bottom: 3px;
+}
+
+.broadcast-content span {
+    color: rgba(255,255,255,0.9);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.broadcast-notification button {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.broadcast-notification button:hover { background: rgba(255,255,255,0.2); }
+
+/* ============ CONTACT ============ */
+.contact-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 10px 0;
+}
+
+.contact-item svg {
+    width: 24px;
+    height: 24px;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.contact-item div { display: flex; flex-direction: column; gap: 3px; }
+.contact-item strong { font-size: 13px; color: var(--text-dim); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+.contact-item a { color: var(--text); text-decoration: none; font-size: 15px; font-weight: 500; }
+.contact-item a:hover { color: var(--accent); }
+
+/* ============ MOBILE ============ */
+@media (max-width: 768px) {
+    .welcome-anim-logo { width: 90px; height: 90px; }
+    .welcome-anim-title { font-size: 24px; }
+    .welcome-anim-name { font-size: 32px; }
+    .welcome-anim-sub { font-size: 14px; }
+    
+    .broadcast-notification {
+        top: max(15px, env(safe-area-inset-top));
+        left: 15px; right: 15px;
+    }
+}
